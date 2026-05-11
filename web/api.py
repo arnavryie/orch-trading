@@ -1634,24 +1634,66 @@ async def api_portfolio(request: Request):
     }
 
 
+# ── Harkirat React Interface & Endpoints ────────────────────────────────
+
+from engine.hkirat_db import Models, Invocations, ToolCalls, PortfolioSize, init_db as init_hkirat_db
+from datetime import datetime
+
+@app.on_event("startup")
+async def _init_hkirat() -> None:
+    init_hkirat_db()
+
+@app.get("/performance")
+async def get_performance():
+    data = []
+    for p in PortfolioSize.select().order_by(PortfolioSize.createdAt.asc()):
+        data.append({
+            "id": p.id,
+            "netPortfolio": p.netPortfolio,
+            "createdAt": p.createdAt.isoformat(),
+            "model": {"name": p.modelId.name}
+        })
+    return {"data": data, "lastUpdated": datetime.now().isoformat()}
+
+@app.get("/invocations")
+async def get_invocations(limit: int = 30):
+    data = []
+    for inv in Invocations.select().order_by(Invocations.createdAt.desc()).limit(limit):
+        tool_calls = []
+        for tc in inv.toolCalls:
+            tool_calls.append({
+                "toolCallType": tc.toolCallType,
+                "metadata": tc.metadata,
+                "createdAt": tc.createdAt.isoformat()
+            })
+        data.append({
+            "id": inv.id,
+            "response": inv.response,
+            "createdAt": inv.createdAt.isoformat(),
+            "model": {"name": inv.modelId.name},
+            "toolCalls": tool_calls
+        })
+    return {"data": data, "lastUpdated": datetime.now().isoformat(), "stale": False}
+
 # ── Static file serving (web mode) ──────────────────────────────
 
-_static_dir = os.path.join(os.path.dirname(__file__), "static")
-if os.path.isdir(_static_dir):
-    from fastapi.staticfiles import StaticFiles
-    from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from fastapi.exceptions import HTTPException as _HTTPException
 
-    @app.get("/app/{rest_of_path:path}")
+_frontend_dist_dir = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
+
+if os.path.isdir(_frontend_dist_dir):
+    app.mount("/assets", StaticFiles(directory=os.path.join(_frontend_dist_dir, "assets")), name="assets")
+
+    @app.get("/{rest_of_path:path}")
     async def serve_spa(rest_of_path: str):
-        """Serve React SPA for all /app/* routes."""
-        index = os.path.join(_static_dir, "index.html")
+        """Serve React SPA for all unknown routes."""
+        file_path = os.path.join(_frontend_dist_dir, rest_of_path)
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return FileResponse(file_path)
+            
+        index = os.path.join(_frontend_dist_dir, "index.html")
         if os.path.exists(index):
             return FileResponse(index)
         raise _HTTPException(404, "Web UI not built")
-
-    @app.get("/")
-    async def root():
-        """Redirect to login or app based on session."""
-        return FileResponse(os.path.join(_static_dir, "auth.html"))
-
-    app.mount("/static", StaticFiles(directory=_static_dir), name="static")
