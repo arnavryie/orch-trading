@@ -8,8 +8,6 @@
 
 import { useState, useCallback } from 'react';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8765';
-
 export interface ChatAction {
   tool: string;
   args: Record<string, unknown>;
@@ -46,7 +44,7 @@ export function useChat(onPageChange?: (page: string) => void) {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/chat`, {
+      const res = await fetch(`/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text.trim(), context: {} }),
@@ -77,6 +75,11 @@ export function useChat(onPageChange?: (page: string) => void) {
       }
       if (actionTools.includes('set_alert')) {
         window.dispatchEvent(new CustomEvent('alerts-refresh'));
+      }
+      // When ARIA analyzed a symbol, update the dashboard to show that symbol
+      const analyzeAction = data.actions?.find(a => a.tool === 'analyze_market');
+      if (analyzeAction?.args?.symbol) {
+        window.dispatchEvent(new CustomEvent('symbol-change', { detail: analyzeAction.args.symbol as string }));
       }
 
       // Handle navigation redirect

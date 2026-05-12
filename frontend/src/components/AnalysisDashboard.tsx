@@ -34,11 +34,11 @@ const AnalysisDashboard = ({ onPageChange }: { onPageChange?: (page: string) => 
   const [loading, setLoading] = useState(true);
   const [snapshot, setSnapshot] = useState<any>(null);
   const [quote, setQuote] = useState<any>(null);
+  const [activeSymbol, setActiveSymbol] = useState('NIFTY');
   const [inputValue, setInputValue] = useState('');
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const logEndRef = useRef<HTMLDivElement>(null);
-  const activeSymbol = "INDIGO";
 
   const { messages, loading: chatLoading, sendMessage } = useChat(onPageChange);
 
@@ -47,18 +47,33 @@ const AnalysisDashboard = ({ onPageChange }: { onPageChange?: (page: string) => 
     setTimeout(() => setToast(null), 3500);
   }, []);
 
+  const loadSymbol = useCallback((sym: string) => {
+    const clean = sym.toUpperCase().trim();
+    setActiveSymbol(clean);
+    setLoading(true);
+    setSnapshot(null);
+    setQuote(null);
+    Promise.all([
+      api.analysis.getSummary(clean).then(setSnapshot).catch(() => {}),
+      api.market.getQuote(clean).then(setQuote).catch(() => {}),
+    ]).finally(() => setLoading(false));
+  }, []);
+
   // Lifecycles hooks
   useEffect(() => {
-    // 1. Check current state
     api.bot.getStatus().then(data => setBotRunning(data.loop_running));
     
-    // Load analysis and quote
-    Promise.all([
-      api.analysis.getSummary(activeSymbol).then(data => setSnapshot(data)).catch(() => {}),
-      api.market.getQuote(activeSymbol).then(data => setQuote(data)).catch(() => {})
-    ]).finally(() => setLoading(false));
+    // Initial load
+    loadSymbol('NIFTY');
 
-    // 2. Connect telemetry websocket
+    // Listen for symbol-change events from ARIA chat
+    const onSymbolChange = (e: Event) => {
+      const sym = (e as CustomEvent<string>).detail;
+      if (sym) loadSymbol(sym);
+    };
+    window.addEventListener('symbol-change', onSymbolChange);
+
+    // Connect telemetry websocket
     const cleanupTicker = connectWebsocket('/ws/market-data', (data) => {
       if (data.type === 'TICK') {
         setLiveTick({ symbol: data.symbol, price: data.price, change: data.change ?? 0, change_pct: data.change_pct ?? 0 });
@@ -72,8 +87,9 @@ const AnalysisDashboard = ({ onPageChange }: { onPageChange?: (page: string) => 
     return () => {
       cleanupTicker();
       cleanupLogs();
+      window.removeEventListener('symbol-change', onSymbolChange);
     };
-  }, []);
+  }, [loadSymbol]);
 
   const toggleBot = async () => {
     if (botRunning) {
@@ -94,9 +110,14 @@ const AnalysisDashboard = ({ onPageChange }: { onPageChange?: (page: string) => 
     if (!inputValue.trim() || chatLoading) return;
     const msg = inputValue.trim();
     setInputValue('');
+
+    // Optimistically detect symbol from "analyze X" patterns before ARIA responds
+    const analyzeMatch = msg.match(/(?:analyze|analysis|show|check|look at|da)\s+([A-Za-z0-9&\-\.]+)/i);
+    if (analyzeMatch) {
+      loadSymbol(analyzeMatch[1]);
+    }
+
     await sendMessage(msg);
-    // Show toast for order actions
-    // The useChat hook dispatches events; we can listen for success patterns
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -131,10 +152,16 @@ const AnalysisDashboard = ({ onPageChange }: { onPageChange?: (page: string) => 
             </span>
           )}
         </div>
-        <div className="bg-bg-sidebar border border-border-medium rounded-md px-4 py-2 flex items-center space-x-2 text-sm text-text-primary font-mono shadow-sm cursor-pointer hover:bg-border-medium transition-colors">
-          <span>analyze</span>
-          <span className="font-semibold">{activeSymbol}</span>
-        </div>
+        <form onSubmit={e => { e.preventDefault(); const v = (e.currentTarget.querySelector('input') as HTMLInputElement).value.trim(); if (v) loadSymbol(v); }} className="flex items-center gap-1 bg-bg-sidebar border border-border-medium rounded-md px-3 py-1.5 text-sm font-mono shadow-sm hover:border-brand/40 transition-colors">
+          <span className="text-text-muted text-xs">analyze</span>
+          <input
+            defaultValue={activeSymbol}
+            key={activeSymbol}
+            onBlur={e => { const v = e.target.value.trim(); if (v && v !== activeSymbol) loadSymbol(v); }}
+            className="bg-transparent text-white font-semibold outline-none w-24 uppercase"
+            placeholder="SYMBOL"
+          />
+        </form>
       </div>
 
       {/* Main Analysis Container */}
