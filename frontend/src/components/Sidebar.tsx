@@ -1,0 +1,63 @@
+const Sidebar = () => {
+  const quickLinks = [
+    { name: 'Morning Brief', icon: '☀️' },
+    { name: 'Holdings', icon: '📊' },
+    { name: 'Positions', icon: '📈' },
+    { name: 'Orders', icon: '📋' },
+    { name: 'Funds', icon: '💰' },
+    { name: 'Alerts', icon: '🔔' },
+    { name: 'FII/DII Flows', icon: '🌊' },
+    { name: 'Patterns', icon: '🧩' },
+    { name: 'Scan', icon: '🔍' },
+    { name: 'GEX', icon: '⚡' },
+    { name: 'IV Smile', icon: '😊' },
+    { name: 'Risk Report', icon: '🛡️' },
+    { name: 'Strategy', icon: '🎯' },
+    { name: 'Delta Hedge', icon: '⚖️' },
+    { name: 'What-If', icon: '🔮' },
+    { name: 'Drift', icon: '🛶' },
+    { name: 'Memory', icon: '🧠' },
+  ];
+
+  return (
+    <div className="w-[260px] flex-shrink-0 bg-bg-sidebar border-r border-border-subtle flex flex-col h-full text-sm">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-20 custom-scrollbar">
+        {/* Broker Section */}
+        <div className="mb-8">
+          <h3 className="text-text-muted text-xs font-semibold tracking-wider mb-4 uppercase">Broker</h3>
+          <button className="w-full text-left px-2 py-1.5 flex items-center space-x-3 text-text-primary hover:bg-white/5 rounded-md transition-colors group">
+            <div className="relative flex items-center justify-center">
+              <div className="w-2 h-2 rounded-full bg-bullish"></div>
+            </div>
+            <span className="font-medium">Zerodha</span>
+          </button>
+        </div>
+
+        {/* Quick Links Section */}
+        <div>
+          <h3 className="text-text-muted text-xs font-semibold tracking-wider mb-4 uppercase">Quick</h3>
+          <div className="space-y-0.5">
+            {quickLinks.map((link) => (
+              <button
+                key={link.name}
+                className="w-full text-left px-2 py-1.5 flex items-center space-x-3 text-text-muted hover:text-text-primary hover:bg-white/5 rounded-md transition-colors"
+              >
+                <span className="opacity-70 text-base">{link.icon}</span>
+                <span>{link.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="absolute bottom-0 w-[260px] p-4 bg-bg-sidebar/90 backdrop-blur-sm border-t border-border-subtle">
+        <div className="text-text-muted text-xs opacity-50 hover:opacity-100 transition-opacity">
+          India Trade v0.2
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Sidebar;
