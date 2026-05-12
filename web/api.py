@@ -1734,6 +1734,47 @@ async def api_health():
     return {"status": "ok", "broker": "demo", "market": "open" if is_market_open() else "closed"}
 
 
+# ── Settings ──────────────────────────────────────────────────
+import keyring
+from config.credentials import SERVICE_NAME
+
+@app.get("/api/settings")
+async def api_get_settings():
+    config = {}
+    if _SETTINGS_FILE.exists():
+        with open(_SETTINGS_FILE, "r") as f:
+            config = _json.load(f)
+            
+    # Read keys from keyring
+    keys = {
+        "GEMINI_API_KEY": keyring.get_password(SERVICE_NAME, "GEMINI_API_KEY") or "",
+        "GROQ_API_KEY": keyring.get_password(SERVICE_NAME, "GROQ_API_KEY") or "",
+    }
+    
+    return {"config": config, "settings": keys}
+
+
+@app.post("/api/settings")
+async def api_save_settings(body: dict = _Body(...)):
+    # Extract keys and save to keyring
+    if "GEMINI_API_KEY" in body:
+        val = body.pop("GEMINI_API_KEY")
+        if val:
+            keyring.set_password(SERVICE_NAME, "GEMINI_API_KEY", val)
+            os.environ["GEMINI_API_KEY"] = val
+    if "GROQ_API_KEY" in body:
+        val = body.pop("GROQ_API_KEY")
+        if val:
+            keyring.set_password(SERVICE_NAME, "GROQ_API_KEY", val)
+            os.environ["GROQ_API_KEY"] = val
+            
+    # Save the rest to settings.json
+    with open(_SETTINGS_FILE, "w") as f:
+        _json.dump(body, f, indent=2)
+        
+    return {"status": "ok"}
+
+
 # ── Funds ─────────────────────────────────────────────────────
 @app.get("/api/funds")
 async def api_funds():
