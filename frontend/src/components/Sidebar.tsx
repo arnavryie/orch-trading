@@ -1,4 +1,9 @@
-const Sidebar = () => {
+type Props = {
+  activePage: string;
+  onPageChange: (page: string) => void;
+};
+
+const Sidebar = ({ activePage, onPageChange }: Props) => {
   const quickLinks = [
     { name: 'Morning Brief', icon: '☀️' },
     { name: 'Holdings', icon: '📊' },
@@ -37,15 +42,23 @@ const Sidebar = () => {
         <div>
           <h3 className="text-text-muted text-xs font-semibold tracking-wider mb-4 uppercase">Quick</h3>
           <div className="space-y-0.5">
-            {quickLinks.map((link) => (
-              <button
-                key={link.name}
-                className="w-full text-left px-2 py-1.5 flex items-center space-x-3 text-text-muted hover:text-text-primary hover:bg-white/5 rounded-md transition-colors"
-              >
-                <span className="opacity-70 text-base">{link.icon}</span>
-                <span>{link.name}</span>
-              </button>
-            ))}
+            {quickLinks.map((link) => {
+              const isActive = activePage === link.name;
+              return (
+                <button
+                  key={link.name}
+                  onClick={() => onPageChange(link.name)}
+                  className={`w-full text-left px-2 py-1.5 flex items-center space-x-3 rounded-md transition-all group duration-200 ${
+                    isActive 
+                    ? 'bg-white/[0.05] text-white border-l-2 border-brand pl-1.5' 
+                    : 'text-text-muted hover:text-text-primary hover:bg-white/5'
+                  }`}
+                >
+                  <span className={`opacity-70 text-base group-hover:scale-110 transition-transform ${isActive ? 'opacity-100' : ''}`}>{link.icon}</span>
+                  <span className={isActive ? 'font-semibold text-brand' : ''}>{link.name}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

@@ -1,4 +1,13 @@
+import { useState, useEffect } from 'react';
+import { api } from '../api/client';
+
 const Header = () => {
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    api.broker.getStatus().then(data => setConnected(data.connected)).catch(() => {});
+  }, []);
+
   return (
     <div className="h-14 flex-shrink-0 border-b border-border-subtle bg-bg-app flex items-center justify-between px-6">
       <div className="flex-1"></div>
@@ -12,12 +21,12 @@ const Header = () => {
       {/* Right Status */}
       <div className="flex-1 flex justify-end items-center space-x-4">
         <div className="flex items-center space-x-2 text-xs text-text-muted">
-          <div className="w-1.5 h-1.5 rounded-full bg-bullish"></div>
-          <span>Open</span>
+          <div className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-bullish' : 'bg-bearish'}`}></div>
+          <span>API</span>
         </div>
         <div className="flex items-center space-x-2 text-xs text-text-muted">
-          <div className="w-1.5 h-1.5 rounded-full bg-bullish"></div>
-          <span>connected</span>
+          <div className={`w-1.5 h-1.5 rounded-full ${connected ? 'bg-bullish' : 'bg-neutral'}`}></div>
+          <span>{connected ? 'connected' : 'disconnected'}</span>
         </div>
       </div>
     </div>

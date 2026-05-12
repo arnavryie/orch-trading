@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { useState, useEffect } from 'react';
+import { api, connectWebsocket } from '../api/client';
 
 interface CardProps {
   title: string;
@@ -10,7 +12,7 @@ interface CardProps {
 }
 
 const Card = ({ title, state, percentage, children, colorClass, borderColorClass }: CardProps) => (
-  <div className={`rounded-md border ${borderColorClass} p-4 flex flex-col space-y-3 bg-card backdrop-blur-xs`}>
+  <div className={`rounded-md border ${borderColorClass} p-4 flex flex-col space-y-3 bg-card backdrop-blur-xs transition-all hover:bg-white/[0.02]`}>
     <div className="flex justify-between items-center text-xs font-medium">
       <div className={`flex space-x-2 ${colorClass}`}>
         <span>{title}</span>
@@ -25,14 +27,63 @@ const Card = ({ title, state, percentage, children, colorClass, borderColorClass
 );
 
 const AnalysisDashboard = () => {
+  const [botRunning, setBotRunning] = useState(false);
+  const [liveTick, setLiveTick] = useState({ symbol: '...', price: 0 });
+  const [sysLog, setSysLog] = useState('Initializing pipelines...');
+  const [loading, setLoading] = useState(true);
+  const [snapshot, setSnapshot] = useState<any>(null);
+  const activeSymbol = "INDIGO";
+
+  // Lifecycles hooks
+  useEffect(() => {
+    // 1. Check current state
+    api.bot.getStatus().then(data => setBotRunning(data.loop_running));
+    
+    // Load analysis
+    api.analysis.getSummary(activeSymbol).then(data => {
+      setSnapshot(data);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+
+    // 2. Connect telemetry websocket
+    const cleanupTicker = connectWebsocket('/ws/market-data', (data) => {
+      if (data.type === 'TICK') {
+        setLiveTick({ symbol: data.symbol, price: data.price });
+      }
+    });
+
+    const cleanupLogs = connectWebsocket('/ws/agent-logs', (data) => {
+      setSysLog(data.msg);
+    });
+
+    return () => {
+      cleanupTicker();
+      cleanupLogs();
+    };
+  }, []);
+
+  const toggleBot = async () => {
+    if (botRunning) {
+      await api.bot.stop();
+      setBotRunning(false);
+    } else {
+      await api.bot.start();
+      setBotRunning(true);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full max-w-5xl mx-auto py-8 px-6 space-y-8">
       
       {/* Top action bar */}
-      <div className="flex justify-end">
-        <div className="bg-bg-sidebar border border-border-medium rounded-md px-4 py-2 flex items-center space-x-2 text-sm text-text-primary font-mono shadow-sm">
+      <div className="flex justify-between items-center">
+        <div className="text-xs text-text-muted font-mono bg-bg-sidebar/50 px-3 py-1 rounded-md border border-border-subtle flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-bullish animate-pulse" />
+          Live: {liveTick.symbol} ₹{liveTick.price.toFixed(2)}
+        </div>
+        <div className="bg-bg-sidebar border border-border-medium rounded-md px-4 py-2 flex items-center space-x-2 text-sm text-text-primary font-mono shadow-sm cursor-pointer hover:bg-border-medium transition-colors">
           <span>analyze</span>
-          <span className="font-semibold">INDIGO</span>
+          <span className="font-semibold">{activeSymbol}</span>
         </div>
       </div>
 
@@ -40,23 +91,30 @@ const AnalysisDashboard = () => {
       <div className="flex-1 flex flex-col min-h-0 border border-border-subtle rounded-xl bg-bg-app shadow-2xl overflow-hidden">
         
         {/* Container Header */}
-        <div className="px-6 py-5 border-b border-border-subtle flex justify-between items-start">
+        <div className="px-6 py-5 border-b border-border-subtle flex justify-between items-start bg-gradient-to-b from-white/[0.02] to-transparent">
           <div className="space-y-1">
-            <div className="text-xs text-text-muted tracking-widest font-semibold uppercase flex space-x-2">
+            <div className="text-xs text-text-muted tracking-widest font-semibold uppercase flex space-x-2 items-center">
+              <div className={`w-1.5 h-1.5 rounded-full ${botRunning ? 'bg-bullish animate-ping' : 'bg-bearish'}`} />
               <span>Analysis</span>
               <span>·</span>
-              <span>Initialising...</span>
+              <span>{botRunning ? 'Active Engine' : 'Idle'}</span>
             </div>
             <div className="flex items-baseline space-x-3">
-              <h1 className="text-3xl font-bold tracking-tight text-white font-mono">INDIGO</h1>
+              <h1 className="text-3xl font-bold tracking-tight text-white font-mono">{activeSymbol}</h1>
               <span className="text-lg text-text-muted font-medium">NSE</span>
             </div>
           </div>
           
           <div className="flex items-center space-x-4">
-            <button className="flex items-center space-x-2 text-xs font-medium text-bearish border border-bearish/30 bg-bearish-dark px-3 py-1.5 rounded-md hover:bg-bearish/20 transition-colors">
-              <span>✕</span>
-              <span>Stop</span>
+            <button 
+              onClick={toggleBot}
+              className={`flex items-center space-x-2 text-xs font-medium border px-4 py-2 rounded-md transition-all duration-200 ${
+                botRunning 
+                ? 'text-bearish border-bearish/30 bg-bearish-dark hover:bg-bearish/20' 
+                : 'text-bullish border-bullish/30 bg-bullish-dark hover:bg-bullish/20'
+              }`}>
+              <span>{botRunning ? '✕' : '▶'}</span>
+              <span>{botRunning ? 'Stop Engine' : 'Start Engine'}</span>
             </button>
             <div className="p-2 bg-bg-sidebar rounded-md border border-border-medium text-text-muted hover:text-white transition-colors cursor-pointer">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 18h8"/><path d="M3 22h18"/><path d="M14 22a7 7 0 1 0 0-14h-1"/><path d="M9 14h2"/><path d="M9 12a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2Z"/><path d="M12 6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3"/></svg>
@@ -68,29 +126,38 @@ const AnalysisDashboard = () => {
         <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
           <div className="space-y-6">
             
-            <div className="flex items-center space-x-3 text-xs text-text-muted font-semibold tracking-wider">
-              <span>PHASE 1 — ANALYST TEAM</span>
+            <div className="flex items-center justify-between text-xs font-semibold tracking-wider">
+              <span className="text-text-muted">PHASE 1 — ANALYST TEAM</span>
+              <span className="text-brand/60 font-mono transition-all">{sysLog}</span>
             </div>
 
             {/* Grid of Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
-              <Card title="Technical" state="NEUTRAL" percentage="17" colorClass="text-neutral" borderColorClass="border-neutral/30">
-                <p>· RSI: 58.7 (neutral)</p>
-                <p>· MACD: bearish crossover</p>
-                <p>· EMA20 below EMA50 (short-term trend down)</p>
-                <p>· Support: 4202.73</p>
-                <p>· Resistance: 4312.13</p>
-              </Card>
+            {loading ? (
+              <div className="h-48 flex items-center justify-center text-text-muted font-mono animate-pulse">Calculating real-time compute metrics...</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <Card 
+                  title="Technical" 
+                  state={snapshot?.verdict || "N/A"} 
+                  percentage={String(snapshot?.score || 0)} 
+                  colorClass={snapshot?.verdict === 'BULLISH' ? "text-bullish" : snapshot?.verdict === 'BEARISH' ? "text-bearish" : "text-neutral"} 
+                  borderColorClass={snapshot?.verdict === 'BULLISH' ? "border-bullish/30" : snapshot?.verdict === 'BEARISH' ? "border-bearish/30" : "border-neutral/30"}>
+                  <p>· RSI: {snapshot?.rsi || 'N/A'}</p>
+                  <p>· MACD Hist: {snapshot?.macd_hist || 'N/A'}</p>
+                  <p>· LTP: ₹{snapshot?.ltp}</p>
+                  <p>· Support: {snapshot?.support}</p>
+                  <p>· Resistance: {snapshot?.resistance}</p>
+                </Card>
 
-              <Card title="Fundamental" state="NEUTRAL" percentage="43" colorClass="text-neutral" borderColorClass="border-neutral/30">
-                <p>· PE: 56.3</p>
-                <p>· ROE: 77.5%</p>
-                <p>· ROCE: 15.5%</p>
-                <p>· Profit Growth: -77.6%</p>
-                <p>· Promoter Holding: 41.6%</p>
-                <p>· Overall: WEAK</p>
-              </Card>
+                <Card title="Fundamental" state="NEUTRAL" percentage="43" colorClass="text-neutral" borderColorClass="border-neutral/30">
+                  <p>· PE: 56.3</p>
+                  <p>· ROE: 77.5%</p>
+                  <p>· ROCE: 15.5%</p>
+                  <p>· Profit Growth: -77.6%</p>
+                  <p>· Promoter Holding: 41.6%</p>
+                  <p>· Overall: WEAK</p>
+                </Card>
 
               <Card title="Options" state="BULLISH" percentage="70" colorClass="text-bullish" borderColorClass="border-bullish/30">
                 <p>· PCR: 0.65 (bullish — heavy call writing)</p>
@@ -98,8 +165,8 @@ const AnalysisDashboard = () => {
                 <p>· IV Rank: 100.0 (elevated — good for selling premium)</p>
               </Card>
               
-              <div className="rounded-md border border-border-subtle p-4 flex items-center justify-center bg-card/50">
-                <span className="text-xs text-text-muted font-medium">News / Macro</span>
+              <div className="rounded-md border border-border-subtle p-4 flex items-center justify-center bg-card/50 hover:border-border-medium transition-colors">
+                <span className="text-xs text-text-muted font-medium">News / Macro Scanner</span>
               </div>
 
               <Card title="Sentiment" state="BULLISH" percentage="85" colorClass="text-bullish" borderColorClass="border-bullish/30">
@@ -122,6 +189,7 @@ const AnalysisDashboard = () => {
               </Card>
 
             </div>
+            )}
 
             {/* Bottom Phase Indicators */}
             <div className="flex space-x-12 pt-8 border-t border-border-subtle/50 text-xs text-text-muted font-medium">
@@ -141,9 +209,11 @@ const AnalysisDashboard = () => {
 
       {/* Bottom Input */}
       <div className="space-y-4">
-        <div className="flex items-center space-x-2 text-xs text-brand font-medium">
-          <div className="w-1.5 h-1.5 bg-brand rotate-45"></div>
-          <span>Analysis running — add context to inject into the follow-up</span>
+        <div className="flex items-center justify-between text-xs font-medium">
+          <div className="flex items-center space-x-2 text-brand">
+            <div className={`w-1.5 h-1.5 bg-brand rotate-45 ${botRunning ? 'animate-spin' : ''}`}></div>
+            <span>{botRunning ? 'Autopilot engaged. Listening to follow-ups...' : 'Engines ready. Waiting for deployment.'}</span>
+          </div>
         </div>
         
         <div className="relative group">
@@ -152,11 +222,11 @@ const AnalysisDashboard = () => {
           </div>
           <input 
             type="text" 
-            className="w-full bg-bg-app border border-border-medium rounded-lg py-4 pl-10 pr-12 text-sm text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/50 transition-all font-mono"
-            placeholder="Analysis in progress — type to add context..."
+            className="w-full bg-bg-app border border-border-medium rounded-lg py-4 pl-10 pr-12 text-sm text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:border-brand/50 focus:ring-1 focus:ring-brand/50 transition-all font-mono shadow-lg shadow-black/20"
+            placeholder={botRunning ? "Inject instruction for live engine..." : "Type context to manually trigger analysis..."}
           />
           <div className="absolute inset-y-0 right-0 pr-4 flex items-center">
-            <button className="text-text-muted hover:text-brand transition-colors">
+            <button className="text-text-muted hover:text-brand transition-colors bg-bg-sidebar p-1 rounded">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
             </button>
           </div>
@@ -164,49 +234,11 @@ const AnalysisDashboard = () => {
 
         {/* Footer shortcuts */}
         <div className="flex flex-wrap gap-2 text-[10px] text-text-muted/60 font-mono">
-          <span>analyze INFY</span>
-          <span>·</span>
-          <span>oi NIFTY</span>
-          <span>·</span>
-          <span>greeks</span>
-          <span>·</span>
-          <span>scan</span>
-          <span>·</span>
-          <span>funds</span>
-          <span>·</span>
-          <span>orders</span>
-          <span>·</span>
-          <span>alerts</span>
-          <span>·</span>
-          <span>patterns</span>
-          <span>·</span>
-          <span>da RELIANCE</span>
-          <span>·</span>
-          <span>iv-smile NIFTY</span>
-          <span>·</span>
-          <span>gex NIFTY</span>
-          <span>·</span>
-          <span>delta-hedge</span>
-          <span>·</span>
-          <span>risk-report</span>
-          <span>·</span>
-          <span>walkforward NIFTY rsi</span>
-          <span>·</span>
-          <span>whatif nifty -5</span>
-          <span>·</span>
-          <span>strategy NIFTY bullish</span>
-          <span>·</span>
-          <span>drift</span>
-          <span>·</span>
-          <span>memory</span>
-          <span>·</span>
-          <span>audit &lt;id&gt;</span>
-          <span>·</span>
-          <span>telegram</span>
-          <span>·</span>
-          <span>provider</span>
-          <span>·</span>
-          <span>pairs RELIANCE TCS</span>
+          {["analyze INFY", "oi NIFTY", "greeks", "scan", "funds", "orders", "alerts", "da RELIANCE", "iv-smile NIFTY", "drift"].map((cmd, i) => (
+            <span key={i} className="cursor-pointer hover:text-brand transition-colors">
+              {cmd} {i < 9 ? '·' : ''}
+            </span>
+          ))}
         </div>
       </div>
 
