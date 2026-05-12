@@ -1,11 +1,24 @@
+import { useState, useEffect } from 'react';
+import { api } from '../api/client';
+
 type Props = {
   activePage: string;
   onPageChange: (page: string) => void;
 };
 
 const Sidebar = ({ activePage, onPageChange }: Props) => {
+  const [atStatus, setAtStatus] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchStatus = () => api.autoTrader.status().then(setAtStatus).catch(() => {});
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   const quickLinks = [
     { name: 'Morning Brief', icon: '☀️' },
+    { name: 'Analysis', icon: '🤖' },
     { name: 'Holdings', icon: '📊' },
     { name: 'Positions', icon: '📈' },
     { name: 'Orders', icon: '📋' },
@@ -22,19 +35,30 @@ const Sidebar = ({ activePage, onPageChange }: Props) => {
     { name: 'What-If', icon: '🔮' },
     { name: 'Drift', icon: '🛶' },
     { name: 'Memory', icon: '🧠' },
+    { name: 'Settings', icon: '⚙️' },
   ];
+
+  const isRunning = atStatus?.running;
 
   return (
     <div className="w-[260px] flex-shrink-0 bg-bg-sidebar border-r border-border-subtle flex flex-col h-full text-sm">
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 pb-20 custom-scrollbar">
         {/* Broker Section */}
         <div className="mb-8">
-          <h3 className="text-text-muted text-xs font-semibold tracking-wider mb-4 uppercase">Broker</h3>
+          <h3 className="text-text-muted text-xs font-semibold tracking-wider mb-4 uppercase flex justify-between items-center">
+            <span>Broker</span>
+            {atStatus && (
+              <span className={`text-[9px] px-1.5 py-0.5 rounded-full flex items-center gap-1 ${isRunning ? 'bg-bullish/20 text-bullish' : 'bg-white/10 text-text-muted'}`}>
+                <div className={`w-1.5 h-1.5 rounded-full ${isRunning ? 'bg-bullish animate-pulse' : 'bg-text-muted'}`}></div>
+                AUTO
+              </span>
+            )}
+          </h3>
           <button className="w-full text-left px-2 py-1.5 flex items-center space-x-3 text-text-primary hover:bg-white/5 rounded-md transition-colors group">
             <div className="relative flex items-center justify-center">
               <div className="w-2 h-2 rounded-full bg-bullish"></div>
             </div>
-            <span className="font-medium">Zerodha</span>
+            <span className="font-medium">Demo Trading</span>
           </button>
         </div>
 
@@ -74,3 +98,4 @@ const Sidebar = ({ activePage, onPageChange }: Props) => {
 };
 
 export default Sidebar;
+

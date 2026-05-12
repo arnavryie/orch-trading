@@ -11,12 +11,19 @@ import AlertsView from './components/AlertsView';
 import FIIDIIView from './components/FIIDIIView';
 import ScanView from './components/ScanView';
 import MemoryView from './components/MemoryView';
+import PatternsView from './components/PatternsView';
+import GEXView from './components/GEXView';
+import IVSmileView from './components/IVSmileView';
+import RiskReportView from './components/RiskReportView';
+import StrategyView from './components/StrategyView';
+import DeltaHedgeView from './components/DeltaHedgeView';
+import WhatIfView from './components/WhatIfView';
+import DriftView from './components/DriftView';
+import SettingsView from './components/SettingsView';
 import PlaceholderView from './components/PlaceholderView';
 
 const PLACEHOLDER_ICONS: Record<string, string> = {
-  'Patterns': '🧩', 'GEX': '⚡', 'IV Smile': '😊',
-  'Risk Report': '🛡️', 'Strategy': '🎯', 'Delta Hedge': '⚖️',
-  'What-If': '🔮', 'Drift': '🛶',
+  // Empty now as all are implemented
 };
 
 export default function App() {
@@ -33,7 +40,15 @@ export default function App() {
       case 'FII/DII Flows': return <FIIDIIView />;
       case 'Scan':         return <ScanView />;
       case 'Memory':       return <MemoryView />;
-      // Analysis dashboard handles the symbol-analyze flow
+      case 'Patterns':     return <PatternsView />;
+      case 'GEX':          return <GEXView />;
+      case 'IV Smile':     return <IVSmileView />;
+      case 'Risk Report':  return <RiskReportView />;
+      case 'Strategy':     return <StrategyView />;
+      case 'Delta Hedge':  return <DeltaHedgeView />;
+      case 'What-If':      return <WhatIfView />;
+      case 'Drift':        return <DriftView />;
+      case 'Settings':     return <SettingsView />;
       case 'Analysis':     return <AnalysisDashboard />;
       default:
         return <PlaceholderView name={activePage} icon={PLACEHOLDER_ICONS[activePage] || '💡'} />;
