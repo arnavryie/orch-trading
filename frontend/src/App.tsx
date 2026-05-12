@@ -2,34 +2,41 @@ import { useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import AnalysisDashboard from './components/AnalysisDashboard';
+import MorningBriefView from './components/MorningBriefView';
 import HoldingsView from './components/HoldingsView';
+import PositionsView from './components/PositionsView';
 import OrdersView from './components/OrdersView';
 import FundsView from './components/FundsView';
+import AlertsView from './components/AlertsView';
+import FIIDIIView from './components/FIIDIIView';
+import ScanView from './components/ScanView';
+import MemoryView from './components/MemoryView';
 import PlaceholderView from './components/PlaceholderView';
+
+const PLACEHOLDER_ICONS: Record<string, string> = {
+  'Patterns': '🧩', 'GEX': '⚡', 'IV Smile': '😊',
+  'Risk Report': '🛡️', 'Strategy': '🎯', 'Delta Hedge': '⚖️',
+  'What-If': '🔮', 'Drift': '🛶',
+};
 
 export default function App() {
   const [activePage, setActivePage] = useState('Morning Brief');
 
   const renderContent = () => {
     switch (activePage) {
-      case 'Morning Brief':
-      case 'Scan':
-        return <AnalysisDashboard />;
-      case 'Holdings':
-        return <HoldingsView />;
-      case 'Orders':
-        return <OrdersView />;
-      case 'Funds':
-        return <FundsView />;
+      case 'Morning Brief': return <MorningBriefView />;
+      case 'Holdings':     return <HoldingsView />;
+      case 'Positions':    return <PositionsView />;
+      case 'Orders':       return <OrdersView />;
+      case 'Funds':        return <FundsView />;
+      case 'Alerts':       return <AlertsView />;
+      case 'FII/DII Flows': return <FIIDIIView />;
+      case 'Scan':         return <ScanView />;
+      case 'Memory':       return <MemoryView />;
+      // Analysis dashboard handles the symbol-analyze flow
+      case 'Analysis':     return <AnalysisDashboard />;
       default:
-        // For remaining placeholder ones like Alerts, Positions etc.
-        const iconMap: Record<string, string> = {
-          'Positions': '📈', 'Alerts': '🔔', 'FII/DII Flows': '🌊', 
-          'Patterns': '🧩', 'GEX': '⚡', 'IV Smile': '😊', 
-          'Risk Report': '🛡️', 'Strategy': '🎯', 'Delta Hedge': '⚖️', 
-          'What-If': '🔮', 'Drift': '🛶', 'Memory': '🧠'
-        };
-        return <PlaceholderView name={activePage} icon={iconMap[activePage] || '💡'} />;
+        return <PlaceholderView name={activePage} icon={PLACEHOLDER_ICONS[activePage] || '💡'} />;
     }
   };
 

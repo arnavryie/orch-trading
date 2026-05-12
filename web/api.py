@@ -1697,3 +1697,459 @@ if os.path.isdir(_frontend_dist_dir):
         if os.path.exists(index):
             return FileResponse(index)
         raise _HTTPException(404, "Web UI not built")
+
+
+# ═══════════════════════════════════════════════════════════════
+# DEMO-MODE API ROUTES — All pages wired to real/demo data
+# ═══════════════════════════════════════════════════════════════
+
+import json as _json
+from pathlib import Path as _Path
+from dataclasses import asdict as _asdict
+from fastapi import Body as _Body
+
+_ORCH_DIR = _Path.home() / ".orch-trading"
+_ORCH_DIR.mkdir(parents=True, exist_ok=True)
+_ALERTS_FILE = _ORCH_DIR / "alerts.json"
+_SETTINGS_FILE = _ORCH_DIR / "settings.json"
+
+
+def _get_broker():
+    """Returns demo broker (auto-fallback when no real broker configured)."""
+    from brokers.demo import get_demo_broker
+    return get_demo_broker()
+
+
+def _safe_asdict(obj):
+    try:
+        return _asdict(obj)
+    except Exception:
+        return obj.__dict__ if hasattr(obj, "__dict__") else str(obj)
+
+
+# ── Health (enriched) ─────────────────────────────────────────
+@app.get("/api/health")
+async def api_health():
+    from market.free_data import is_market_open
+    return {"status": "ok", "broker": "demo", "market": "open" if is_market_open() else "closed"}
+
+
+# ── Funds ─────────────────────────────────────────────────────
+@app.get("/api/funds")
+async def api_funds():
+    broker = _get_broker()
+    f = broker.get_funds()
+    return _safe_asdict(f)
+
+
+# ── Holdings ──────────────────────────────────────────────────
+@app.get("/api/holdings")
+async def api_holdings():
+    broker = _get_broker()
+    return [_safe_asdict(h) for h in broker.get_holdings()]
+
+
+# ── Positions ─────────────────────────────────────────────────
+@app.get("/api/positions")
+async def api_positions():
+    broker = _get_broker()
+    return [_safe_asdict(p) for p in broker.get_positions()]
+
+
+# ── Orders ────────────────────────────────────────────────────
+@app.get("/api/orders")
+async def api_orders():
+    broker = _get_broker()
+    return [_safe_asdict(o) for o in broker.get_orders()]
+
+
+@app.post("/api/order")
+async def api_place_order(body: dict = _Body(...)):
+    from brokers.base import OrderRequest
+    broker = _get_broker()
+    order = OrderRequest(
+        symbol=body["symbol"].upper(),
+        exchange=body.get("exchange", "NSE"),
+        transaction_type=body["transaction_type"].upper(),
+        quantity=int(body["quantity"]),
+        order_type=body.get("order_type", "MARKET"),
+        product=body.get("product", "CNC"),
+        price=body.get("price"),
+        tag=body.get("tag", "manual"),
+    )
+    resp = broker.place_order(order)
+    return _safe_asdict(resp)
+
+
+@app.delete("/api/order/{order_id}")
+async def api_cancel_order(order_id: str):
+    broker = _get_broker()
+    ok = broker.cancel_order(order_id)
+    return {"success": ok, "order_id": order_id}
+
+
+# ── Quote ─────────────────────────────────────────────────────
+@app.get("/api/quote/{symbol}")
+async def api_quote(symbol: str):
+    from market.free_data import get_quote
+    return get_quote(symbol)
+
+
+# ── Chart (OHLCV) ─────────────────────────────────────────────
+@app.get("/api/chart/{symbol}")
+async def api_chart(symbol: str, period: str = "3mo", interval: str = "1d"):
+    from market.free_data import get_ohlcv_json
+    data = get_ohlcv_json(symbol, period=period, interval=interval)
+    from market.free_data import is_market_open
+    return {"symbol": symbol, "period": period, "interval": interval,
+            "data": data, "market_open": is_market_open()}
+
+
+# ── Scan ──────────────────────────────────────────────────────
+@app.get("/api/scan")
+async def api_scan():
+    from market.free_data import run_nifty50_scan
+    return {"results": run_nifty50_scan()}
+
+
+# ── FII/DII Flows ─────────────────────────────────────────────
+@app.get("/api/flows")
+async def api_flows():
+    from market.free_data import get_fii_dii_flows
+    return get_fii_dii_flows()
+
+
+# ── GEX ───────────────────────────────────────────────────────
+@app.get("/api/gex/{symbol}")
+async def api_gex(symbol: str):
+    from market.free_data import get_gex_data
+    return get_gex_data(symbol)
+
+
+# ── IV Smile ──────────────────────────────────────────────────
+@app.get("/api/iv-smile/{symbol}")
+async def api_iv_smile(symbol: str):
+    from market.free_data import get_iv_smile
+    return get_iv_smile(symbol)
+
+
+# ── Options Chain ─────────────────────────────────────────────
+@app.get("/api/options/{symbol}")
+async def api_options(symbol: str, expiry: str = None):
+    from market.free_data import get_options_chain
+    return get_options_chain(symbol, expiry)
+
+
+# ── Patterns ─────────────────────────────────────────────────
+@app.get("/api/patterns")
+async def api_patterns():
+    from market.free_data import NIFTY50_SYMBOLS, get_historical_ohlcv
+    results = []
+    for sym in NIFTY50_SYMBOLS[:15]:
+        try:
+            df = get_historical_ohlcv(sym, period="3mo", interval="1d")
+            if df.empty or len(df) < 30:
+                continue
+            close = df["Close"].squeeze()
+            high20 = float(close.tail(20).max())
+            low20 = float(close.tail(20).min())
+            ltp = float(close.iloc[-1])
+            near_high = (high20 - ltp) / high20 < 0.03
+            near_low = (ltp - low20) / low20 < 0.03
+            pattern = "Near 20D High" if near_high else ("Near 20D Low" if near_low else "Consolidating")
+            signal = "BEARISH" if near_high else ("BULLISH" if near_low else "NEUTRAL")
+            results.append({
+                "symbol": sym, "ltp": round(ltp, 2),
+                "pattern": pattern, "signal": signal,
+                "high20": round(high20, 2), "low20": round(low20, 2),
+            })
+        except Exception:
+            pass
+    return {"patterns": results}
+
+
+# ── Risk Report ───────────────────────────────────────────────
+@app.get("/api/risk-report")
+async def api_risk_report():
+    from market.free_data import get_quote
+    broker = _get_broker()
+    holdings = broker.get_holdings()
+    funds = broker.get_funds()
+    total = funds.total_balance or 1
+    positions_data = []
+    for h in holdings:
+        weight = (h.last_price * h.quantity) / total * 100
+        positions_data.append({
+            "symbol": h.symbol, "weight": round(weight, 2),
+            "pnl": h.pnl, "pnl_pct": h.pnl_pct,
+        })
+    vix_q = get_quote("^INDIAVIX")
+    vix = vix_q.get("ltp", 15)
+    total_pnl = sum(h.pnl for h in holdings)
+    var_95 = round(total * 0.02 * (vix / 20), 2)
+    return {
+        "total_value": round(total, 2),
+        "cash": round(funds.available_cash, 2),
+        "total_pnl": round(total_pnl, 2),
+        "vix": vix,
+        "var_95": var_95,
+        "max_drawdown": round(min(0, total_pnl / total * 100), 2),
+        "positions": positions_data,
+        "concentration_risk": "HIGH" if any(p["weight"] > 20 for p in positions_data) else "LOW",
+    }
+
+
+# ── Strategy Library ──────────────────────────────────────────
+@app.get("/api/strategy")
+async def api_strategy():
+    strategies = [
+        {"id": i+1, "name": name, "type": t, "risk": r, "description": desc}
+        for i, (name, t, r, desc) in enumerate([
+            ("Bull Call Spread", "Options", "Low", "Buy lower strike call, sell higher strike call"),
+            ("Bear Put Spread", "Options", "Low", "Buy higher strike put, sell lower strike put"),
+            ("Iron Condor", "Options", "Medium", "Sell OTM call+put, buy further OTM for hedge"),
+            ("Covered Call", "Options", "Low", "Hold stock, sell OTM call for premium"),
+            ("Protective Put", "Options", "Low", "Hold stock, buy put as insurance"),
+            ("Straddle", "Options", "High", "Buy ATM call + put — profit from big moves"),
+            ("Strangle", "Options", "High", "Buy OTM call + put — cheaper than straddle"),
+            ("Calendar Spread", "Options", "Medium", "Same strike, different expiries"),
+            ("Momentum Buy", "Equity", "Medium", "Buy stocks in strong uptrend (RSI 50-70)"),
+            ("Mean Reversion", "Equity", "Medium", "Buy oversold stocks (RSI < 35)"),
+            ("Breakout", "Equity", "Medium", "Buy on volume breakout above resistance"),
+            ("MACD Crossover", "Equity", "Low", "Buy when MACD crosses above signal line"),
+            ("EMA 20/50 Cross", "Equity", "Low", "Golden/death cross strategy"),
+            ("52-Week High", "Equity", "Medium", "Buy stocks making new 52-week highs"),
+            ("VIX Spike Buy", "Index", "High", "Buy NIFTY when VIX > 20 (fear = opportunity)"),
+            ("Pairs Trading", "Equity", "Low", "Long/short correlated stock pairs"),
+        ])
+    ]
+    return {"strategies": strategies, "total": len(strategies)}
+
+
+# ── Delta Hedge ───────────────────────────────────────────────
+@app.get("/api/delta-hedge")
+async def api_delta_hedge():
+    from market.free_data import get_options_chain, get_quote
+    broker = _get_broker()
+    holdings = broker.get_holdings()
+    net_delta = sum(h.quantity for h in holdings)
+    nifty_ltp = get_quote("NIFTY")["ltp"] or 22500
+    hedge_lots = round(net_delta / 50)
+    return {
+        "net_delta": net_delta,
+        "nifty_ltp": nifty_ltp,
+        "hedge_suggestion": f"Sell {abs(hedge_lots)} lot(s) NIFTY futures" if net_delta > 0 else "No hedge needed",
+        "positions": [{"symbol": h.symbol, "qty": h.quantity, "delta": h.quantity} for h in holdings],
+    }
+
+
+# ── What-If ───────────────────────────────────────────────────
+@app.get("/api/what-if")
+async def api_what_if(symbol: str = "NIFTY", change_pct: float = 5.0):
+    from market.free_data import get_quote
+    broker = _get_broker()
+    holdings = broker.get_holdings()
+    funds = broker.get_funds()
+    scenario_pnl = 0
+    for h in holdings:
+        q = get_quote(h.symbol)
+        ltp = q["ltp"] or h.last_price
+        simulated_price = ltp * (1 + change_pct / 100)
+        scenario_pnl += (simulated_price - h.avg_price) * h.quantity
+    return {
+        "symbol": symbol, "change_pct": change_pct,
+        "current_portfolio_value": round(funds.total_balance, 2),
+        "simulated_pnl": round(scenario_pnl, 2),
+        "simulated_total": round(funds.total_balance + scenario_pnl, 2),
+        "impact_pct": round(scenario_pnl / funds.total_balance * 100, 2) if funds.total_balance else 0,
+    }
+
+
+# ── Drift ─────────────────────────────────────────────────────
+@app.get("/api/drift")
+async def api_drift():
+    from engine.auto_trader import load_config
+    broker = _get_broker()
+    holdings = broker.get_holdings()
+    funds = broker.get_funds()
+    total = funds.total_balance or 1
+    config = load_config()
+    watchlist = config.get("watchlist", [])
+    target_weight = round(100 / max(len(watchlist), 1), 2)
+    drift_data = []
+    for h in holdings:
+        actual_weight = round((h.last_price * h.quantity) / total * 100, 2)
+        drift_data.append({
+            "symbol": h.symbol, "target_weight": target_weight,
+            "actual_weight": actual_weight, "drift": round(actual_weight - target_weight, 2),
+            "action": "REDUCE" if actual_weight > target_weight + 5 else ("INCREASE" if actual_weight < target_weight - 5 else "HOLD"),
+        })
+    return {"drift": drift_data, "cash_pct": round(funds.available_cash / total * 100, 2)}
+
+
+# ── Memory ────────────────────────────────────────────────────
+@app.get("/api/memory")
+async def api_memory():
+    from engine.auto_trader import load_memory
+    return {"entries": load_memory()[-50:]}
+
+
+# ── Alerts ────────────────────────────────────────────────────
+def _load_alerts() -> list:
+    if _ALERTS_FILE.exists():
+        try:
+            return _json.loads(_ALERTS_FILE.read_text())
+        except Exception:
+            return []
+    return []
+
+
+def _save_alerts(alerts: list):
+    _ALERTS_FILE.write_text(_json.dumps(alerts, indent=2))
+
+
+@app.get("/api/alerts")
+async def api_get_alerts():
+    return {"alerts": _load_alerts()}
+
+
+@app.post("/api/alerts")
+async def api_add_alert(body: dict = _Body(...)):
+    import uuid
+    alerts = _load_alerts()
+    alert = {
+        "id": str(uuid.uuid4())[:8],
+        "symbol": body.get("symbol", "").upper(),
+        "condition": body.get("condition", "above"),
+        "price": body.get("price", 0),
+        "triggered": False,
+        "created_at": _Path(".").stat().st_mtime,
+    }
+    alerts.append(alert)
+    _save_alerts(alerts)
+    return {"success": True, "alert": alert}
+
+
+@app.delete("/api/alerts/{alert_id}")
+async def api_delete_alert(alert_id: str):
+    alerts = [a for a in _load_alerts() if a.get("id") != alert_id]
+    _save_alerts(alerts)
+    return {"success": True}
+
+
+# ── Morning Brief ─────────────────────────────────────────────
+@app.get("/api/morning-brief")
+async def api_morning_brief():
+    from market.free_data import get_nifty_data, get_fii_dii_flows, get_sector_performance, NIFTY50_SYMBOLS, get_quote
+    nifty = get_nifty_data()
+    fii = get_fii_dii_flows()
+    sectors = get_sector_performance()
+
+    top_gainers, top_losers = [], []
+    for sym in NIFTY50_SYMBOLS[:20]:
+        try:
+            q = get_quote(sym)
+            item = {"symbol": sym, "ltp": q["ltp"], "change_pct": q["change_pct"]}
+            if q["change_pct"] > 0:
+                top_gainers.append(item)
+            else:
+                top_losers.append(item)
+        except Exception:
+            pass
+    top_gainers = sorted(top_gainers, key=lambda x: x["change_pct"], reverse=True)[:3]
+    top_losers = sorted(top_losers, key=lambda x: x["change_pct"])[:3]
+
+    ai_brief = ""
+    try:
+        from agent.providers.gemini import get_gemini
+        gemini = get_gemini()
+        ai_brief = await gemini.morning_brief(nifty, fii, top_gainers + top_losers)
+    except Exception:
+        ai_brief = f"NIFTY at {nifty['nifty']['price']:,.0f} ({nifty['nifty']['change_pct']:+.2f}%). VIX at {nifty['vix']:.1f}. Market {'open' if nifty['market_open'] else 'closed'}."
+
+    return {
+        "nifty": nifty,
+        "fii_dii": fii.get("flows", [])[:3],
+        "top_gainers": top_gainers,
+        "top_losers": top_losers,
+        "sectors": sectors[:5],
+        "ai_brief": ai_brief,
+    }
+
+
+# ── Settings ──────────────────────────────────────────────────
+@app.get("/api/settings")
+async def api_get_settings():
+    from engine.auto_trader import load_config
+    config = load_config()
+    settings = {}
+    if _SETTINGS_FILE.exists():
+        try:
+            settings = _json.loads(_SETTINGS_FILE.read_text())
+        except Exception:
+            pass
+    return {"config": config, "settings": settings}
+
+
+@app.post("/api/settings")
+async def api_save_settings(body: dict = _Body(...)):
+    from engine.auto_trader import load_config, save_config
+    config = load_config()
+    config.update({k: v for k, v in body.items() if k in config})
+    save_config(config)
+    _SETTINGS_FILE.write_text(_json.dumps(body, indent=2))
+    return {"success": True}
+
+
+# ── Demo Broker Reset ─────────────────────────────────────────
+@app.post("/api/demo/reset")
+async def api_demo_reset():
+    from brokers.demo import get_demo_broker
+    broker = get_demo_broker()
+    broker.reset()
+    return {"success": True, "message": "Portfolio reset to ₹10,00,000"}
+
+
+# ── Auto-Trader ───────────────────────────────────────────────
+@app.post("/api/auto-trader/start")
+async def api_at_start():
+    from engine.auto_trader import get_auto_trader
+    get_auto_trader().start()
+    return {"status": "started"}
+
+
+@app.post("/api/auto-trader/stop")
+async def api_at_stop():
+    from engine.auto_trader import get_auto_trader
+    get_auto_trader().stop()
+    return {"status": "stopped"}
+
+
+@app.get("/api/auto-trader/status")
+async def api_at_status():
+    from engine.auto_trader import get_auto_trader
+    return get_auto_trader().get_status()
+
+
+# ── AI Analyze ────────────────────────────────────────────────
+@app.post("/api/analyze")
+async def api_analyze(body: dict = _Body(...)):
+    symbol = body.get("symbol", "RELIANCE").upper()
+    from market.free_data import get_quote, get_historical_ohlcv
+    from agent.providers.gemini import get_gemini
+    q = get_quote(symbol)
+    df = get_historical_ohlcv(symbol, period="1mo", interval="1d")
+    market_data = {
+        "quote": q,
+        "recent_prices": df["Close"].tolist()[-10:] if not df.empty else [],
+    }
+    try:
+        gemini = get_gemini()
+        result = await gemini.analyze_stock(symbol, market_data)
+        result["symbol"] = symbol
+        result["quote"] = q
+        return result
+    except Exception as e:
+        return {"symbol": symbol, "verdict": "HOLD", "confidence": 0,
+                "rationale": f"AI unavailable: {e}", "quote": q}
+
