@@ -7,8 +7,10 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      '/performance': 'http://127.0.0.1:8765',
-      '/invocations': 'http://127.0.0.1:8765',
+      '/api': { target: 'http://127.0.0.1:8766', changeOrigin: true },
+      '/ws':  { target: 'ws://127.0.0.1:8766',  changeOrigin: true, ws: true },
+      '/performance': 'http://127.0.0.1:8766',
+      '/invocations': 'http://127.0.0.1:8766',
     }
   }
 })

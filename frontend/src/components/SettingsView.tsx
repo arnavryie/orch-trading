@@ -52,32 +52,38 @@ export default function SettingsView() {
           
           <div className="space-y-3">
             <div>
-              <label className="block text-xs text-text-muted mb-1 font-semibold uppercase tracking-wider">Max Position Size (₹)</label>
+              <label htmlFor="max_position_size" className="block text-xs text-text-muted mb-1 font-semibold uppercase tracking-wider">Max Position Size (₹)</label>
               <input 
+                id="max_position_size"
                 type="number" 
                 value={config.max_position_size || ''} 
                 onChange={(e) => updateConfig('max_position_size', parseInt(e.target.value) || 0)}
+                placeholder="Max trade value"
                 className="w-full bg-bg-app border border-border-medium rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-brand/50"
               />
             </div>
             
             <div>
-              <label className="block text-xs text-text-muted mb-1 font-semibold uppercase tracking-wider">Daily Loss Limit (₹)</label>
+              <label htmlFor="daily_loss_limit" className="block text-xs text-text-muted mb-1 font-semibold uppercase tracking-wider">Daily Loss Limit (₹)</label>
               <input 
+                id="daily_loss_limit"
                 type="number" 
                 value={config.daily_loss_limit || ''} 
                 onChange={(e) => updateConfig('daily_loss_limit', parseInt(e.target.value) || 0)}
+                placeholder="Daily cap"
                 className="w-full bg-bg-app border border-border-medium rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-brand/50"
               />
             </div>
 
             <div>
-              <label className="block text-xs text-text-muted mb-1 font-semibold uppercase tracking-wider">Risk Per Trade (%)</label>
+              <label htmlFor="risk_per_trade" className="block text-xs text-text-muted mb-1 font-semibold uppercase tracking-wider">Risk Per Trade (%)</label>
               <input 
+                id="risk_per_trade"
                 type="number" 
                 step="0.1"
                 value={config.risk_per_trade || ''} 
                 onChange={(e) => updateConfig('risk_per_trade', parseFloat(e.target.value) || 0)}
+                placeholder="e.g. 1.5"
                 className="w-full bg-bg-app border border-border-medium rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-brand/50"
               />
             </div>
@@ -92,8 +98,10 @@ export default function SettingsView() {
           
           <div className="space-y-3">
             <div>
-              <label className="block text-xs text-text-muted mb-1 font-semibold uppercase tracking-wider">Primary AI Provider</label>
+              <label htmlFor="ai_provider" className="block text-xs text-text-muted mb-1 font-semibold uppercase tracking-wider">Primary AI Provider</label>
               <select 
+                id="ai_provider"
+                title="Primary AI Provider"
                 value={config.ai_provider || 'gemini'} 
                 onChange={(e) => updateConfig('ai_provider', e.target.value)}
                 className="w-full bg-bg-app border border-border-medium rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-brand/50"

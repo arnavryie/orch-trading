@@ -5,10 +5,27 @@ export default function HoldingsView() {
   const [holdings, setHoldings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchHoldings = () => {
     api.broker.getHoldings()
-      .then(data => setHoldings(data))
+      .then(async (data) => {
+        const withQuotes = await Promise.all(data.map(async (h: any) => {
+          try {
+            const q = await api.market.getQuote(h.symbol);
+            return { ...h, quote: q };
+          } catch {
+            return h;
+          }
+        }));
+        setHoldings(withQuotes);
+      })
+      .catch(console.error)
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchHoldings();
+    window.addEventListener('holdings-refresh', fetchHoldings);
+    return () => window.removeEventListener('holdings-refresh', fetchHoldings);
   }, []);
 
   return (
@@ -27,7 +44,7 @@ export default function HoldingsView() {
               <th className="px-6 py-4">Instrument</th>
               <th className="px-6 py-4 text-right">Qty</th>
               <th className="px-6 py-4 text-right">Avg Price</th>
-              <th className="px-6 py-4 text-right">LTP</th>
+              <th className="px-6 py-4 text-right">LTP & Change</th>
               <th className="px-6 py-4 text-right">P&L</th>
             </tr>
           </thead>
@@ -46,7 +63,14 @@ export default function HoldingsView() {
                   <td className="px-6 py-4 font-bold text-white">{h.symbol} <span className="text-text-muted text-xs font-normal">{h.exchange || 'NSE'}</span></td>
                   <td className="px-6 py-4 text-right">{h.quantity}</td>
                   <td className="px-6 py-4 text-right">₹{h.avg_price ? h.avg_price.toFixed(2) : 'N/A'}</td>
-                  <td className="px-6 py-4 text-right text-brand">₹{h.last_price?.toFixed(2)}</td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="text-brand">₹{h.quote?.price ? h.quote.price.toFixed(2) : h.last_price?.toFixed(2)}</div>
+                    {h.quote && h.quote.change !== undefined && (
+                      <div className={`text-xs ${h.quote.change >= 0 ? 'text-bullish' : 'text-bearish'}`}>
+                        {h.quote.change >= 0 ? '+' : ''}{h.quote.change.toFixed(2)} ({h.quote.change_pct.toFixed(2)}%)
+                      </div>
+                    )}
+                  </td>
                   <td className={`px-6 py-4 text-right font-semibold ${h.pnl >= 0 ? 'text-bullish' : 'text-bearish'}`}>
                     {h.pnl >= 0 ? '+' : ''}{h.pnl?.toLocaleString()}
                   </td>

@@ -1,5 +1,5 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8765';
-const WS_BASE = API_BASE.replace(/^http/, 'ws');
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const WS_BASE = API_BASE ? API_BASE.replace(/^http/, 'ws') : `ws://localhost:8766`;
 
 const get = (path: string) => fetch(`${API_BASE}${path}`).then(r => r.json());
 const post = (path: string, body?: any) => fetch(`${API_BASE}${path}`, {
@@ -11,10 +11,10 @@ const del = (path: string) => fetch(`${API_BASE}${path}`, { method: 'DELETE' }).
 export const api = {
   broker: {
     getStatus: () => get('/api/broker/status'),
-    getFunds:  () => get('/api/funds'),
-    getHoldings: () => get('/api/holdings'),
-    getPositions: () => get('/api/positions'),
-    getOrders: () => get('/api/orders'),
+    getFunds:  () => get('/api/broker/funds'),
+    getHoldings: () => get('/api/broker/holdings'),
+    getPositions: () => get('/api/broker/positions'),
+    getOrders: () => get('/api/broker/orders'),
     placeOrder: (body: any) => post('/api/order', body),
     cancelOrder: (id: string) => del(`/api/order/${id}`),
   },
@@ -67,6 +67,7 @@ export const api = {
     status: () => get('/api/auto-trader/status'),
   },
   health: () => get('/api/health'),
+  chat: (message: string, context?: Record<string, unknown>) => post('/api/chat', { message, context: context ?? {} }),
 };
 
 export function connectWebsocket(path: string, onMessage: (data: any) => void) {

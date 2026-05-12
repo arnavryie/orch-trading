@@ -49,7 +49,7 @@ export default function App() {
       case 'What-If':      return <WhatIfView />;
       case 'Drift':        return <DriftView />;
       case 'Settings':     return <SettingsView />;
-      case 'Analysis':     return <AnalysisDashboard />;
+      case 'Analysis':     return <AnalysisDashboard onPageChange={setActivePage} />;
       default:
         return <PlaceholderView name={activePage} icon={PLACEHOLDER_ICONS[activePage] || '💡'} />;
     }

@@ -5,10 +5,19 @@ export default function OrdersView() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchOrders = () => {
+    setLoading(true);
     api.broker.getOrders()
       .then(data => setOrders(data))
+      .catch(console.error)
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchOrders();
+    // Listen for refresh events dispatched by useChat after order placement
+    window.addEventListener('orders-refresh', fetchOrders);
+    return () => window.removeEventListener('orders-refresh', fetchOrders);
   }, []);
 
   return (

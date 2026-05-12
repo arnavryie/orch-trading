@@ -38,6 +38,7 @@ export default function AlertsView() {
             onChange={e => setForm(f => ({ ...f, symbol: e.target.value.toUpperCase() }))}
           />
           <select
+            title="Alert Condition"
             className="bg-bg-app border border-border-medium rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none"
             value={form.condition}
             onChange={e => setForm(f => ({ ...f, condition: e.target.value }))}
