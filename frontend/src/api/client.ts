@@ -1,5 +1,5 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-const WS_BASE = API_BASE ? API_BASE.replace(/^http/, 'ws') : `ws://localhost:8766`;
+const WS_BASE = API_BASE ? API_BASE.replace(/^http/, 'ws') : `ws://localhost:8765`;
 
 const get = (path: string) => fetch(`${API_BASE}${path}`).then(r => r.json());
 const post = (path: string, body?: any) => fetch(`${API_BASE}${path}`, {

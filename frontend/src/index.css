@@ -1,27 +1,72 @@
 @import "tailwindcss";
 
 @theme {
+  /* Legacy tokens (kept for backward compat) */
   --color-brand: #ff6b00;
-  --color-bg-app: #0b0c10;
-  --color-bg-sidebar: #13141a;
-  --color-bg-card: #15161d;
-  --color-border-subtle: #232530;
-  --color-border-medium: #333645;
-  
-  --color-text-primary: #e0e0e0;
-  --color-text-muted: #8b8d97;
-  
-  --color-bullish: #10b981;
-  --color-bullish-dark: rgba(16, 185, 129, 0.1);
-  --color-bearish: #ef4444;
-  --color-bearish-dark: rgba(239, 68, 68, 0.1);
+  --color-bg-app: #000000;
+  --color-bg-sidebar: #0d0d0d;
+  --color-bg-card: #1a1a1a;
+  --color-border-subtle: #333333;
+  --color-border-medium: #444444;
+  --color-text-primary: #f7ddd2;
+  --color-text-muted: #e2bfb0;
+  --color-bullish: #40e56c;
+  --color-bullish-dark: rgba(64, 229, 108, 0.1);
+  --color-bearish: #ffb4ab;
+  --color-bearish-dark: rgba(255, 180, 171, 0.1);
   --color-neutral: #f59e0b;
   --color-neutral-dark: rgba(245, 158, 11, 0.1);
+
+  /* ProTrade Dark tokens */
+  --color-primary: #ffb692;
+  --color-secondary: #40e56c;
+  --color-error: #ffb4ab;
+  --color-on-surface: #f7ddd2;
+  --color-on-surface-variant: #e2bfb0;
+  --color-panel-bg: #0d0d0d;
+  --color-card-bg: #1a1a1a;
+  --color-panel-border: #333333;
+  --color-hover-bg: #252525;
+  --color-trade-buy: #40e56c;
+  --color-trade-sell: #ffb4ab;
+  --color-surface-container: #2a1c16;
+  --color-surface-container-high: #362720;
+  --color-surface-container-low: #261812;
+  --color-surface-container-lowest: #170b06;
+  --color-outline-variant: #594136;
+
+  /* Font families */
+  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
 @layer base {
   body {
-    background-color: var(--color-bg-app);
-    color: var(--color-text-primary);
+    background-color: #000000;
+    color: #f7ddd2;
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
+
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    font-size: inherit;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+  }
+}
+
+@layer utilities {
+  .hide-scrollbar::-webkit-scrollbar { display: none; }
+  .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #333333; border-radius: 2px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #555555; }
+
+  .ms-fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
 }

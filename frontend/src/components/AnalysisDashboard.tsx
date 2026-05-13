@@ -110,13 +110,6 @@ const AnalysisDashboard = ({ onPageChange }: { onPageChange?: (page: string) => 
     if (!inputValue.trim() || chatLoading) return;
     const msg = inputValue.trim();
     setInputValue('');
-
-    // Optimistically detect symbol from "analyze X" patterns before ARIA responds
-    const analyzeMatch = msg.match(/(?:analyze|analysis|show|check|look at|da)\s+([A-Za-z0-9&\-\.]+)/i);
-    if (analyzeMatch) {
-      loadSymbol(analyzeMatch[1]);
-    }
-
     await sendMessage(msg);
   };
 

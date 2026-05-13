@@ -106,7 +106,7 @@ export default function CandlestickChart({ data, height = 400 }: Props) {
             tick={{ fill: '#8b949e', fontSize: 10 }} 
             tickLine={false}
             axisLine={false}
-            tickFormatter={(val) => `₹${val}`}
+            tickFormatter={(val: number) => `₹${val}`}
             orientation="right"
           />
           <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }} />

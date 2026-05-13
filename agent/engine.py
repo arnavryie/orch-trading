@@ -27,8 +27,17 @@ SERVICE_NAME = "india-trade-cli"
 
 
 def _get_key(name: str) -> str:
-    """Fetch key from keyring → settings.json → env → ''."""
-    # 1. keyring
+    """Fetch key from settings.json → keyring → env → ''."""
+    # 1. settings.json (most reliable — always checked first)
+    try:
+        if SETTINGS_FILE.exists():
+            data = json.loads(SETTINGS_FILE.read_text())
+            val = data.get(name, '')
+            if val:
+                return val
+    except Exception:
+        pass
+    # 2. keyring
     try:
         import keyring
         val = keyring.get_password(SERVICE_NAME, name)
@@ -36,16 +45,8 @@ def _get_key(name: str) -> str:
             return val
     except Exception:
         pass
-    # 2. settings.json
-    try:
-        if SETTINGS_FILE.exists():
-            data = json.loads(SETTINGS_FILE.read_text())
-            if data.get(name):
-                return data[name]
-    except Exception:
-        pass
     # 3. env
-    return os.environ.get(name, "")
+    return os.environ.get(name, '')
 
 
 # ── Tool implementations ──────────────────────────────────────────
@@ -269,20 +270,30 @@ TOOL_EXECUTORS = {
     "ui_action": _tool_ui_action,
 }
 
-SYSTEM_PROMPT = """You are ARIA — the Autonomous Reasoning and Intelligence Agent for Orch-Trading.
-You are a precision market intelligence engine embedded in a real-time trading terminal.
+SYSTEM_PROMPT = """You are ARIA — the Autonomous Reasoning and Intelligence Agent embedded in a live Indian stock market trading terminal called Vibe Trading.
 
-PERSONALITY: Sharp, technical, cinematic. No fluff. Every response feels like a Bloomberg terminal crossed with a sci-fi command deck. Use Indian market context (NSE/BSE, ₹ currency, IST timezone).
+You understand free-form natural language. The user may ask anything in any way — casual, abbreviated, shorthand or full sentences. Translate their intent intelligently and call the right tool.
+
+EXAMPLES OF FREE-FORM REQUESTS YOU MUST HANDLE:
+- "reliance analysis" → call analyze_market(symbol="RELIANCE")
+- "show me tcs" → call analyze_market(symbol="TCS")
+- "nifty" → call analyze_market(symbol="NIFTY")
+- "buy 10 hdfc" → call place_order(symbol="HDFC", qty=10, side="BUY")
+- "sell 5 infy" → call place_order(symbol="INFY", qty=5, side="SELL")
+- "my funds" / "balance" / "how much do i have" → call check_funds()
+- "alert me when reliance hits 3000" → call set_alert(symbol="RELIANCE", price=3000, condition="above")
+- "take me to holdings" / "go to risk" / "open orders" → call ui_action(route=...)
+- "what's the market doing" → call analyze_market(symbol="NIFTY")
+
+PERSONALITY: Sharp, direct, cinematic. Bloomberg terminal crossed with a sci-fi command deck. 2-4 lines max unless giving a full analysis. Use Indian market context: NSE/BSE, ₹ for prices, IST timezone, Indian number format (1,00,000 not 100,000).
 
 RULES:
-- When a user says "buy X shares of Y", ALWAYS call place_order immediately.
-- When market is closed, still execute the order and note it's queued for next open.
-- Keep responses SHORT. 2-4 lines max unless giving a full analysis.
-- Use ₹ symbol for prices, not "Rs" or "INR".
-- Format numbers in Indian notation (1,00,000 not 100,000).
-- Never say "I cannot" — you can always do something useful.
-- After placing an order, confirm with exact symbol, quantity, price, and order ID.
-- After navigation requests, confirm where you're routing the user.
+- ALWAYS call a tool. Never just chat without calling at least one relevant tool first.
+- Never say you can't do something. Always try.
+- When market is closed, still execute orders and note they're queued for next open.
+- After orders: confirm symbol, qty, price, order ID.
+- NSE symbols are UPPERCASE: RELIANCE not reliance.
+- If the user says a company name, resolve it to its NSE symbol (e.g. "Reliance" → RELIANCE, "HDFC bank" → HDFCBANK, "Infosys" → INFY, "TCS" → TCS, "TATA motors" → TATAMOTORS).
 """
 
 
@@ -296,55 +307,21 @@ class ChatEngine:
         self._client = None
         self._groq_client = None
 
-    def _get_gemini(self):
+    def _get_groq_client(self):
         if self._client:
             return self._client
-        api_key = _get_key("GEMINI_API_KEY")
+        api_key = _get_key("GROQ_API_KEY")
         if not api_key:
-            raise ValueError("GEMINI_API_KEY not configured. Go to Settings → AI Providers.")
+            raise ValueError("GROQ_API_KEY not configured. Go to Settings -> AI Providers.")
         try:
-            from google import genai
-            self._client = genai.Client(api_key=api_key)
-        except ImportError:
-            raise ImportError("google-genai not installed. Run: pip install google-genai")
-        return self._client
-
-    def _build_gemini_tools(self):
-        """Convert tool schema list to Gemini SDK Tool format."""
-        from google.genai import types
-        function_declarations = []
-        for tool in GEMINI_TOOLS:
-            # Convert JSON schema properties to Gemini Schema format
-            props = {}
-            for pname, pdef in tool["parameters"].get("properties", {}).items():
-                ptype = pdef.get("type", "string").upper()
-                schema_type = {
-                    "STRING": types.Type.STRING,
-                    "INTEGER": types.Type.INTEGER,
-                    "NUMBER": types.Type.NUMBER,
-                    "BOOLEAN": types.Type.BOOLEAN,
-                    "ARRAY": types.Type.ARRAY,
-                    "OBJECT": types.Type.OBJECT,
-                }.get(ptype, types.Type.STRING)
-
-                prop_kwargs: dict[str, Any] = {"type": schema_type}
-                if "description" in pdef:
-                    prop_kwargs["description"] = pdef["description"]
-                if "enum" in pdef:
-                    prop_kwargs["enum"] = pdef["enum"]
-                props[pname] = types.Schema(**prop_kwargs)
-
-            fn_decl = types.FunctionDeclaration(
-                name=tool["name"],
-                description=tool["description"],
-                parameters=types.Schema(
-                    type=types.Type.OBJECT,
-                    properties=props,
-                    required=tool["parameters"].get("required", []),
-                ),
+            from openai import OpenAI
+            self._client = OpenAI(
+                api_key=api_key,
+                base_url="https://api.groq.com/openai/v1"
             )
-            function_declarations.append(fn_decl)
-        return [types.Tool(function_declarations=function_declarations)]
+        except ImportError:
+            raise ImportError("openai not installed. Run: pip install openai")
+        return self._client
 
     def process(self, message: str, context: dict | None = None) -> dict:
         """
@@ -359,53 +336,57 @@ class ChatEngine:
         redirect: str | None = None
 
         try:
-            client = self._get_gemini()
+            client = self._get_groq_client()
         except (ValueError, ImportError) as e:
             return {"reply": str(e), "actions": [], "redirect": None}
 
-        from google.genai import types
-
-        tools = self._build_gemini_tools()
-        contents = [types.Content(role="user", parts=[types.Part(text=message)])]
+        # Format our schemas for OpenAI tool calling
+        openai_tools = [{"type": "function", "function": t} for t in GEMINI_TOOLS]
+        messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": message}
+        ]
 
         try:
             # Agentic loop: keep calling until no more tool calls
             for _iteration in range(6):  # max 6 tool call rounds
-                response = client.models.generate_content(
-                    model="gemini-2.0-flash",
-                    contents=contents,
-                    config=types.GenerateContentConfig(
-                        system_instruction=SYSTEM_PROMPT,
-                        tools=tools,
-                        temperature=0.4,
-                    ),
+                response = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=messages,
+                    tools=openai_tools,
+                    temperature=0.4,
                 )
 
-                candidate = response.candidates[0] if response.candidates else None
-                if not candidate:
-                    break
+                msg = response.choices[0].message
 
-                # Check for function calls
-                function_calls = [
-                    p.function_call
-                    for p in candidate.content.parts
-                    if hasattr(p, "function_call") and p.function_call
-                ]
-
-                if not function_calls:
+                if not msg.tool_calls:
                     # No more tool calls — extract final text response
-                    text_parts = [
-                        p.text for p in candidate.content.parts
-                        if hasattr(p, "text") and p.text
-                    ]
-                    final_reply = " ".join(text_parts).strip()
+                    final_reply = msg.content or ""
                     break
+
+                # Add model response to conversation
+                messages.append({
+                    "role": "assistant",
+                    "content": msg.content or None,
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments
+                            }
+                        } for tc in msg.tool_calls
+                    ]
+                })
 
                 # Execute tools
-                tool_results = []
-                for fc in function_calls:
-                    tool_name = fc.name
-                    tool_args = dict(fc.args) if fc.args else {}
+                for tc in msg.tool_calls:
+                    tool_name = tc.function.name
+                    try:
+                        tool_args = json.loads(tc.function.arguments) if tc.function.arguments else {}
+                    except json.JSONDecodeError:
+                        tool_args = {}
 
                     log.info("[ChatEngine] Tool call: %s(%s)", tool_name, tool_args)
 
@@ -425,24 +406,18 @@ class ChatEngine:
                     if tool_name == "ui_action" and "redirect" in result:
                         redirect = result["redirect"]
 
-                    tool_results.append(
-                        types.Part(
-                            function_response=types.FunctionResponse(
-                                name=tool_name,
-                                response=result,
-                            )
-                        )
-                    )
-
-                # Add model response and tool results to conversation
-                contents.append(candidate.content)
-                contents.append(types.Content(role="user", parts=tool_results))
+                    # Append tool result to conversation
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": json.dumps(result)
+                    })
 
             else:
                 final_reply = "Processing complete. Multiple operations executed."
 
         except Exception as e:
-            log.error("[ChatEngine] Gemini error: %s", e, exc_info=True)
+            log.error("[ChatEngine] Groq error: %s", e, exc_info=True)
             # Fallback: try to handle common commands locally
             final_reply = self._local_fallback(message, actions)
 
@@ -465,7 +440,7 @@ class ChatEngine:
                 f"Portfolio status: ₹{result['available_cash']:,.0f} available | "
                 f"₹{result['total_balance']:,.0f} total | P&L: ₹{result['total_pnl']:,.0f}"
             )
-        return "⚠ AI engine offline. Set your GEMINI_API_KEY in Settings to activate the full engine."
+        return "⚠ AI engine offline. Set your GROQ_API_KEY in Settings to activate the full engine."
 
     def _summarize_actions(self, actions: list) -> str:
         """Generate a reply from executed actions when AI response is empty."""

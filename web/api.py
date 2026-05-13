@@ -1736,7 +1736,7 @@ async def api_health():
 
 # ── Settings ──────────────────────────────────────────────────
 import keyring
-from config.credentials import SERVICE_NAME
+from config.credentials import SERVICE
 
 @app.get("/api/settings")
 async def api_get_settings():
@@ -1747,8 +1747,8 @@ async def api_get_settings():
             
     # Read keys from keyring
     keys = {
-        "GEMINI_API_KEY": keyring.get_password(SERVICE_NAME, "GEMINI_API_KEY") or "",
-        "GROQ_API_KEY": keyring.get_password(SERVICE_NAME, "GROQ_API_KEY") or "",
+        "GEMINI_API_KEY": keyring.get_password(SERVICE, "GEMINI_API_KEY") or "",
+        "GROQ_API_KEY": keyring.get_password(SERVICE, "GROQ_API_KEY") or "",
     }
     
     return {"config": config, "settings": keys}
@@ -1760,12 +1760,12 @@ async def api_save_settings(body: dict = _Body(...)):
     if "GEMINI_API_KEY" in body:
         val = body.pop("GEMINI_API_KEY")
         if val:
-            keyring.set_password(SERVICE_NAME, "GEMINI_API_KEY", val)
+            keyring.set_password(SERVICE, "GEMINI_API_KEY", val)
             os.environ["GEMINI_API_KEY"] = val
     if "GROQ_API_KEY" in body:
         val = body.pop("GROQ_API_KEY")
         if val:
-            keyring.set_password(SERVICE_NAME, "GROQ_API_KEY", val)
+            keyring.set_password(SERVICE, "GROQ_API_KEY", val)
             os.environ["GROQ_API_KEY"] = val
             
     # Save the rest to settings.json
@@ -2193,4 +2193,26 @@ async def api_analyze(body: dict = _Body(...)):
     except Exception as e:
         return {"symbol": symbol, "verdict": "HOLD", "confidence": 0,
                 "rationale": f"AI unavailable: {e}", "quote": q}
+
+
+# ── Agentic Chat ──────────────────────────────────────────────
+@app.post("/api/chat")
+async def api_chat(body: dict = _Body(...)):
+    """Main AI chat endpoint utilizing Groq/Gemini providers."""
+    import asyncio
+    from fastapi import HTTPException
+    message = body.get("message", "").strip()
+    context = body.get("context", {})
+    if not message:
+        raise HTTPException(status_code=400, detail="message is required")
+    try:
+        from agent.engine import get_engine
+        engine = get_engine()
+        # Execute blocking compute in executor
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, engine.process, message, context
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
