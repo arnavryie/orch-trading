@@ -1,7 +1,7 @@
 """
 skills/example_skill.py
 ────────────────────────
-EXAMPLE: How to write a custom skill plugin for india-trade-cli.
+EXAMPLE: How to write a custom skill plugin for orch-trading.
 
 This file is intentionally prefixed with "example_" so it is NOT
 auto-loaded at startup. Rename or copy it (without the "example_" prefix)

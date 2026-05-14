@@ -2,7 +2,7 @@
 
 ## Problem
 Traders who use TradingView want to visualise the same strategy logic they built
-in india-trade-cli without rewriting it. A one-click Pine Script export removes
+in orch-trading without rewriting it. A one-click Pine Script export removes
 that friction.
 
 ## Solution

@@ -1,7 +1,7 @@
 """
 web/openclaw.py
 ───────────────
-OpenClaw skill manifest for india-trade-cli.
+OpenClaw skill manifest for orch-trading.
 
 Served at /.well-known/openclaw.json — OpenClaw agents read this to
 discover available skills, their input schemas, and descriptions.
@@ -14,7 +14,7 @@ How an OpenClaw agent uses this:
 """
 
 MANIFEST: dict = {
-    "name": "india-trade-cli",
+    "name": "orch-trading",
     "description": (
         "India stock market analysis platform. "
         "Provides live quotes, multi-agent AI analysis, FII/DII flows, "

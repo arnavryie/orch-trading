@@ -5,7 +5,7 @@ Thanks for your interest in contributing! This document explains how to get star
 ## Getting Started
 
 1. Fork the repo
-2. Clone your fork: `git clone https://github.com/<your-username>/india-trade-cli.git`
+2. Clone your fork: `git clone https://github.com/<your-username>/orch-trading.git`
 3. Create a feature branch: `git checkout -b feature/my-feature`
 4. Install in development mode: `pip install -e .`
 

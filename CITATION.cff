@@ -1,13 +1,13 @@
 cff-version: 1.2.0
 message: "If you use this software in your work, please cite it as below."
 type: software
-title: "India Trade CLI"
+title: "Orch Trading"
 abstract: "AI-powered multi-agent stock & options analysis platform for Indian markets (NSE/BSE/NFO)."
 authors:
-  - name: "hopit-ai"
-    alias: "hopit-ai"
-    email: "arkid@hopit.ai"
-repository-code: "https://github.com/hopit-ai/india-trade-cli"
+  - name: "arnavryie"
+    alias: "arnavryie"
+    email: "officialarnav4@gmail.com"
+repository-code: "https://github.com/arnavryie/orch-trading"
 license: MIT
 keywords:
   - trading

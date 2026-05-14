@@ -368,7 +368,7 @@ class UpstoxAPI(BrokerAPI):
             "product": self._map_product(req.product),
             "validity": "DAY",
             "price": req.price if req.order_type == "LIMIT" else 0,
-            "tag": "india-trade-cli",
+            "tag": "orch-trading",
             "instrument_token": f"NSE_EQ|{req.symbol}",
             "order_type": req.order_type,
             "transaction_type": req.transaction_type,

@@ -4,7 +4,7 @@
 
 > An agentic quantitative researcher that runs multi-agent AI analysis, backtests quant strategies, places live orders via Indian brokers, and pushes Telegram alerts -- all from a terminal CLI, macOS app, or web interface.
 
-[![CI](https://github.com/hopit-ai/india-trade-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/hopit-ai/india-trade-cli/actions/workflows/ci.yml)
+[![CI](https://github.com/arnavryie/orch-trading/actions/workflows/ci.yml/badge.svg)](https://github.com/arnavryie/orch-trading/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -80,8 +80,8 @@ Standard `analyze`: 8 LLM calls. `deep-analyze`: 11 calls, every analyst fully A
 ### Step 1: Clone and install
 
 ```bash
-git clone https://github.com/hopit-ai/india-trade-cli.git
-cd india-trade-cli
+git clone https://github.com/arnavryie/orch-trading.git
+cd orch-trading
 python -m venv .venv && source .venv/bin/activate
 pip install -e .
 ```
@@ -300,7 +300,7 @@ Data broker:      Fyers (free, best options data)
 Execution broker: Zerodha (your existing demat account)
 ```
 
-Both stay authenticated. Currently the last-connected broker becomes primary for all operations. Explicit data/execution routing is planned ([#129](https://github.com/hopit-ai/india-trade-cli/issues/129)).
+Both stay authenticated. Currently the last-connected broker becomes primary for all operations. Explicit data/execution routing is planned ([#129](https://github.com/arnavryie/orch-trading/issues/129)).
 
 ---
 
@@ -356,11 +356,11 @@ macos-app/  Electron + React macOS app with streaming UI
 
 **Shipped:** 7 AI analyst agents . scorecard . multi-round debate . 3 risk personas . trade memory . backtesting . walk-forward . what-if . FII/DII flows . event strategies . options analytics . VaR/CVaR . DCF valuation . model drift . pair trading . Telegram bot . Fyers WebSocket . paper trading . live trading (Zerodha) . PDF export . OpenClaw skills . 58-strategy library . backtest cache . macOS Electron app . streaming analysis . GEX . IV smile . contextual action chips . buy/sell/cancel CLI . mode toggle . mid-stream context injection
 
-**In progress:** multi-session UI ([#110](https://github.com/hopit-ai/india-trade-cli/issues/110)) . dual-broker mode ([#129](https://github.com/hopit-ai/india-trade-cli/issues/129)) . portfolio-aware personalisation ([#118](https://github.com/hopit-ai/india-trade-cli/issues/118), [#119](https://github.com/hopit-ai/india-trade-cli/issues/119), [#121](https://github.com/hopit-ai/india-trade-cli/issues/121)) . web search for agents ([#149](https://github.com/hopit-ai/india-trade-cli/issues/149))
+**In progress:** multi-session UI ([#110](https://github.com/arnavryie/orch-trading/issues/110)) . dual-broker mode ([#129](https://github.com/arnavryie/orch-trading/issues/129)) . portfolio-aware personalisation ([#118](https://github.com/arnavryie/orch-trading/issues/118), [#119](https://github.com/arnavryie/orch-trading/issues/119), [#121](https://github.com/arnavryie/orch-trading/issues/121)) . web search for agents ([#149](https://github.com/arnavryie/orch-trading/issues/149))
 
-**Planned:** app order placement UI ([#130](https://github.com/hopit-ai/india-trade-cli/issues/130)) . ML prediction analyst ([#145](https://github.com/hopit-ai/india-trade-cli/issues/145)) . ensemble meta-model ([#146](https://github.com/hopit-ai/india-trade-cli/issues/146)) . TradingView webhooks . SEBI compliance layer . memory improvements ([#122](https://github.com/hopit-ai/india-trade-cli/issues/122))
+**Planned:** app order placement UI ([#130](https://github.com/arnavryie/orch-trading/issues/130)) . ML prediction analyst ([#145](https://github.com/arnavryie/orch-trading/issues/145)) . ensemble meta-model ([#146](https://github.com/arnavryie/orch-trading/issues/146)) . TradingView webhooks . SEBI compliance layer . memory improvements ([#122](https://github.com/arnavryie/orch-trading/issues/122))
 
-See [open issues](https://github.com/hopit-ai/india-trade-cli/issues).
+See [open issues](https://github.com/arnavryie/orch-trading/issues).
 
 ---
 
@@ -372,7 +372,7 @@ pytest                    # no API keys needed, network tests skipped by default
 trade --no-broker         # smoke test
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Most wanted: broker integrations ([#80](https://github.com/hopit-ai/india-trade-cli/issues/80)), app order placement UI ([#130](https://github.com/hopit-ai/india-trade-cli/issues/130)), integration tests ([#79](https://github.com/hopit-ai/india-trade-cli/issues/79)).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Most wanted: broker integrations ([#80](https://github.com/arnavryie/orch-trading/issues/80)), app order placement UI ([#130](https://github.com/arnavryie/orch-trading/issues/130)), integration tests ([#79](https://github.com/arnavryie/orch-trading/issues/79)).
 
 ---
 

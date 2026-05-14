@@ -23,7 +23,7 @@ from config.credentials import (
 
 class TestConstants:
     def test_service_name(self):
-        assert SERVICE == "india-trade-cli"
+        assert SERVICE == "orch-trading"
 
     def test_known_credentials_not_empty(self):
         assert len(KNOWN_CREDENTIALS) > 0

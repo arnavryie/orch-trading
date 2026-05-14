@@ -21,7 +21,7 @@ from typing import Any
 log = logging.getLogger(__name__)
 
 SETTINGS_FILE = Path.home() / ".orch-trading" / "settings.json"
-SERVICE_NAME = "india-trade-cli"
+SERVICE_NAME = "orch-trading"
 
 # ── Key resolution ────────────────────────────────────────────────
 

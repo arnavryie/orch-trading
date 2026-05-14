@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# deploy.sh — Zero-downtime deployment for india-trade-cli on a VPS
+# deploy.sh — Zero-downtime deployment for orch-trading on a VPS
 #
 # Usage:
 #   ./scripts/deploy.sh                 Deploy with latest code
@@ -11,7 +11,7 @@ set -euo pipefail
 
 COMPOSE_FILE="docker/docker-compose.yml"
 PROD_FILE="docker/docker-compose.prod.yml"
-PROJECT_NAME="india-trade"
+PROJECT_NAME="orch-trading"
 
 WANTS_PULL=false
 WANTS_PROD=false
@@ -39,7 +39,7 @@ else
   COMPOSE_ARGS="-f $COMPOSE_FILE"
 fi
 
-echo "==> india-trade-cli deployment"
+echo "==> orch-trading deployment"
 echo "    Compose: $COMPOSE_ARGS"
 
 if $WANTS_STOP; then

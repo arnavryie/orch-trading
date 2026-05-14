@@ -346,7 +346,7 @@ def _page(title: str, body: str) -> str:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{title} — india-trade-cli</title>
+  <title>{title} — orch-trading</title>
   <style>{_CSS}</style>
 </head>
 <body>

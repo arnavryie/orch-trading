@@ -127,7 +127,7 @@ async def stop_bot():
 
 # --- SETTINGS ---
 import keyring
-SERVICE_NAME = "india-trade-cli"
+SERVICE_NAME = "orch-trading"
 _SETTINGS_FILE = os.path.expanduser("~/.orch-trading/settings.json")
 
 @app.get("/api/settings")

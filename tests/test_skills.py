@@ -528,7 +528,7 @@ class TestOpenClawManifest:
     def test_manifest_has_required_fields(self, client):
         r = client.get("/.well-known/openclaw.json")
         m = r.json()
-        assert m["name"] == "india-trade-cli"
+        assert m["name"] == "orch-trading"
         assert "description" in m
         assert "version" in m
         assert "skills" in m

@@ -87,7 +87,7 @@ def _build_pdf(content: str, title: str) -> object:
     pdf.multi_cell(
         w,
         4,
-        "India Trade CLI | AI-Powered Multi-Agent Stock Analysis | github.com/hopit-ai/india-trade-cli",
+        "Orch Trading | AI-Powered Multi-Agent Stock Analysis | github.com/arnavryie/orch-trading",
     )
 
     return pdf
@@ -152,7 +152,7 @@ def _archive_filename(title: str) -> str:
 
 def export_to_pdf(
     content: str,
-    title: str = "India Trade CLI Report",
+    title: str = "Orch Trading Report",
     filename: Optional[str] = None,
 ) -> str:
     """

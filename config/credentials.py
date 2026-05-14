@@ -1,7 +1,7 @@
 """
 config/credentials.py
 ─────────────────────
-Secure credential management for india-trade-cli.
+Secure credential management for orch-trading.
 
 Priority order for every credential:
   1. OS keychain  (keyring) — set once via `credentials setup`, never in files
@@ -17,8 +17,8 @@ Usage:
     # Anywhere else — smart getter (keychain → env → prompt)
     api_key = get_credential("ANTHROPIC_API_KEY", "Anthropic API Key", secret=True)
 
-Keychain service name: "india-trade-cli"
-Keys are stored as:   keyring.get_password("india-trade-cli", "KITE_API_KEY")
+Keychain service name: "orch-trading"
+Keys are stored as:   keyring.get_password("orch-trading", "KITE_API_KEY")
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from rich.table import Table
 
 console = Console()
 
-SERVICE = "india-trade-cli"
+SERVICE = "orch-trading"
 
 # ── Known credentials (key, display label, is_secret) ────────
 #   is_secret=True  → masked input + stored in keychain

@@ -1,7 +1,7 @@
 """
 brokers/dhan.py
 ───────────────
-Dhan broker implementation for india-trade-cli (#155).
+Dhan broker implementation for orch-trading (#155).
 
 Reference: github.com/marketcalls/openalgo/tree/main/broker/dhan
 Dhan API docs: https://dhanhq.co/docs/v2/

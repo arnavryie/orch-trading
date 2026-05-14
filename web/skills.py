@@ -1,7 +1,7 @@
 """
 web/skills.py
 ─────────────
-OpenClaw skill endpoints for india-trade-cli.
+OpenClaw skill endpoints for orch-trading.
 
 Each POST endpoint is a "skill" that any OpenClaw agent can call via HTTP.
 Returns structured JSON from the existing market/analysis/engine modules.

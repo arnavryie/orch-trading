@@ -936,21 +936,24 @@ cd docker
 
 **Step 1 — Build image**
 ```bash
-docker build -f Dockerfile -t india-trade-cli:test ..
+docker build -f Dockerfile -t orch-trading:test ..
 # Should build successfully in 2 stages; no errors
 ```
 
 **Step 2 — Health check**
 ```bash
-docker run --rm -p 8765:8765 \
-  -e NO_BROKER=1 \
-  india-trade-cli:test &
+docker build -f Dockerfile -t orch-trading:test ..
+docker run -d --rm \
+  -v "$(pwd)/../:/app" \
+  -p 8765:8765 \
+  --name orch-test \
+  orch-trading:test &
 
 sleep 5
 curl http://localhost:8765/health
 # Expected: {"status": "ok"}
 
-docker stop $(docker ps -q --filter ancestor=india-trade-cli:test)
+docker stop $(docker ps -q --filter ancestor=orch-trading:test)
 ```
 
 **Step 3 — Docker Compose (dev)**
