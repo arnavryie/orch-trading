@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import TopNav from './components/TopNav';
 import WatchlistSidebar from './components/WatchlistSidebar';
-import AIChat from './components/AIChat';
+import { AIChatbox } from './components/AIChatbox';
+import { TVTicker } from './components/TVTicker';
 import DashboardView from './components/DashboardView';
 import HoldingsView from './components/HoldingsView';
 import PositionsView from './components/PositionsView';
@@ -68,6 +69,7 @@ export default function App() {
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-black text-[#f7ddd2]">
       {/* Top Navigation */}
       <TopNav activePage={activePage} onPageChange={setActivePage} />
+      <TVTicker />
 
       {/* Body: Watchlist Sidebar + Main Content */}
       <div className="flex flex-1 overflow-hidden">
@@ -122,7 +124,7 @@ export default function App() {
       </div>
 
       {/* Floating AI Chat — always rendered, toggled by FAB */}
-      <AIChat />
+      <AIChatbox />
     </div>
   );
 }
