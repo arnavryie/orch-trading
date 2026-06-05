@@ -14,7 +14,7 @@ export const TVTicker: React.FC = () => {
     script.async = true;
     script.innerHTML = JSON.stringify({
       symbols: [
-        { proName: "NSE:NIFTY", title: "NIFTY 50" },
+        { proName: "NSE:NIFTY50", title: "NIFTY 50" },
         { proName: "BSE:SENSEX", title: "SENSEX" },
         { proName: "NSE:BANKNIFTY", title: "BANK NIFTY" },
         { proName: "NSE:RELIANCE", title: "RELIANCE" },
@@ -24,6 +24,9 @@ export const TVTicker: React.FC = () => {
         { proName: "NSE:ICICIBANK", title: "ICICI BANK" },
         { proName: "NSE:SBIN", title: "SBI" },
         { proName: "NSE:WIPRO", title: "WIPRO" },
+        { proName: "NSE:BHARTIARTL", title: "AIRTEL" },
+        { proName: "NSE:ITC",        title: "ITC" },
+        { proName: "NSE:AXISBANK",   title: "AXIS BANK" },
       ],
       showSymbolLogo: false,
       isTransparent: true,

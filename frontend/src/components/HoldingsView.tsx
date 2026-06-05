@@ -1,7 +1,7 @@
 import { TVMiniChart } from "./TVMiniChart";
 import { useEffect, useState } from "react";
 
-const API = "http://localhost:8765";
+const API = "";
 
 export default function HoldingsView() {
   const [holdings, setHoldings] = useState([]);
@@ -64,7 +64,15 @@ export default function HoldingsView() {
                   </div>
                 </div>
               </div>
-              <TVMiniChart symbol={h.symbol} height={150} />
+              <div style={{ height: "4px", background: "#2d2d2d", borderRadius: "2px", marginTop: "8px" }}>
+                <div style={{
+                  height: "100%",
+                  width: `${Math.min(Math.abs(h.pnl_pct), 100)}%`,
+                  background: h.pnl >= 0 ? "#22c55e" : "#ef4444",
+                  borderRadius: "2px",
+                  transition: "width 0.5s",
+                }} />
+              </div>
             </div>
           ))}
         </div>

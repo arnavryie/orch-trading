@@ -10,12 +10,12 @@ const del = (path: string) => fetch(`${API_BASE}${path}`, { method: 'DELETE' }).
 
 export const api = {
   broker: {
-    getStatus: () => get('/api/broker/status'),
-    getFunds:  () => get('/api/broker/funds'),
-    getHoldings: () => get('/api/broker/holdings'),
-    getPositions: () => get('/api/broker/positions'),
-    getOrders: () => get('/api/broker/orders'),
-    placeOrder: (body: any) => post('/api/order', body),
+    getStatus:   () => get('/api/health'),
+    getFunds:    () => get('/api/funds'),
+    getHoldings: () => get('/api/holdings'),
+    getPositions: () => get('/api/positions'),
+    getOrders:   () => get('/api/orders'),
+    placeOrder:  (body: any) => post('/api/order', body),
     cancelOrder: (id: string) => del(`/api/order/${id}`),
   },
   bot: {

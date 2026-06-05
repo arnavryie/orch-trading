@@ -19,6 +19,7 @@ def _yf_sym(symbol: str) -> str:
     sym = symbol.upper().strip()
     index_map = {
         "NIFTY": "^NSEI", "NIFTY50": "^NSEI",
+        "NIFTY 50": "^NSEI", "NIFTY 50 INDEX": "^NSEI",
         "BANKNIFTY": "^NSEBANK", "SENSEX": "^BSESN",
         "INDIAVIX": "^INDIAVIX",
     }
@@ -29,54 +30,93 @@ def _yf_sym(symbol: str) -> str:
     return sym + ".NS"
 
 def is_market_open() -> bool:
+    """Returns True if NSE is currently open: 9:15 AM – 3:30 PM IST, Mon–Fri."""
+    from datetime import time as dtime
     now = datetime.now(IST)
-    if now.weekday() >= 5:  # Sat/Sun
+    if now.weekday() >= 5:          # Saturday=5, Sunday=6
         return False
-    market_open = now.replace(hour=9, minute=15, second=0)
-    market_close = now.replace(hour=15, minute=30, second=0)
-    return market_open <= now <= market_close
+    t = now.time()                  # Extract time component (no timezone, safe)
+    return dtime(9, 15) <= t <= dtime(15, 30)
 
 def get_quote(symbol: str) -> dict:
-    sym = _yf_sym(symbol)
+    """
+    Fetch current or last known price. Works during AND after market hours.
+    Uses .history() as primary (reliable) and fast_info as fallback.
+    """
+    yf_sym = _yf_sym(symbol)
+    base = {
+        "symbol": symbol.upper(),
+        "price": 0, "change": 0, "change_pct": 0,
+        "high": 0, "low": 0, "prev_close": 0,
+        "market_open": is_market_open(),
+    }
     try:
-        t = yf.Ticker(sym)
+        t = yf.Ticker(yf_sym)
+
+        # Method 1: history (most reliable for NSE)
+        hist = t.history(period="5d", interval="1d", auto_adjust=True)
+        if not hist.empty:
+            last  = hist.iloc[-1]
+            prev  = hist.iloc[-2] if len(hist) >= 2 else last
+            price = round(float(last["Close"]), 2)
+            prev_p = round(float(prev["Close"]), 2)
+            return {
+                **base,
+                "price":      price,
+                "change":     round(price - prev_p, 2),
+                "change_pct": round((price - prev_p) / prev_p * 100 if prev_p else 0, 2),
+                "high":       round(float(last["High"]), 2),
+                "low":        round(float(last["Low"]),  2),
+                "prev_close": prev_p,
+            }
+
+        # Method 2: fast_info fallback
         fi = t.fast_info
-        price = float(fi.last_price or fi.previous_close or 0)
-        prev = float(fi.previous_close or price)
-        change = price - prev
-        change_pct = (change / prev * 100) if prev else 0
-        return {
-            "symbol": symbol.upper(),
-            "price": round(price, 2),
-            "change": round(change, 2),
-            "change_pct": round(change_pct, 2),
-            "high": round(float(fi.day_high or price), 2),
-            "low": round(float(fi.day_low or price), 2),
-            "volume": int(fi.shares or 0),
-            "prev_close": round(prev, 2),
-            "market_open": is_market_open(),
-        }
+        price = float(getattr(fi, "last_price", 0) or getattr(fi, "previous_close", 0) or 0)
+        prev  = float(getattr(fi, "previous_close", 0) or price)
+        if price > 0:
+            return {
+                **base,
+                "price":      round(price, 2),
+                "change":     round(price - prev, 2),
+                "change_pct": round((price - prev) / prev * 100 if prev else 0, 2),
+                "high":       round(float(getattr(fi, "day_high", price) or price), 2),
+                "low":        round(float(getattr(fi, "day_low",  price) or price), 2),
+                "prev_close": round(prev, 2),
+            }
     except Exception as e:
-        return {"symbol": symbol.upper(), "price": 0, "error": str(e)}
+        base["error"] = str(e)[:80]
+    return base
 
 def get_historical(symbol: str, period: str = "3mo", interval: str = "1d") -> list:
-    sym = _yf_sym(symbol)
+    """Fetch OHLCV data. Returns list of {time, open, high, low, close, volume}."""
+    yf_sym = _yf_sym(symbol)
     try:
-        df = yf.Ticker(sym).history(period=period, interval=interval)
+        df = yf.Ticker(yf_sym).history(period=period, interval=interval, auto_adjust=True)
+        if df.empty:
+            return []
         df = df.reset_index()
         rows = []
         for _, row in df.iterrows():
-            t = row["Date"] if "Date" in row else row["Datetime"]
+            ts_col = "Date" if "Date" in df.columns else "Datetime"
+            ts = row[ts_col]
+            # Normalise to UTC Unix timestamp
+            if hasattr(ts, "timestamp"):
+                epoch = int(pd.Timestamp(ts).value // 1_000_000_000)
+            else:
+                epoch = int(pd.Timestamp(str(ts)).timestamp())
+            if row["Close"] <= 0:
+                continue
             rows.append({
-                "time": int(pd.Timestamp(t).timestamp()),
-                "open": round(float(row["Open"]), 2),
-                "high": round(float(row["High"]), 2),
-                "low": round(float(row["Low"]), 2),
-                "close": round(float(row["Close"]), 2),
+                "time":   epoch,
+                "open":   round(float(row["Open"]),   2),
+                "high":   round(float(row["High"]),   2),
+                "low":    round(float(row["Low"]),    2),
+                "close":  round(float(row["Close"]),  2),
                 "volume": int(row["Volume"]),
             })
-        return rows
-    except Exception as e:
+        return sorted(rows, key=lambda x: x["time"])
+    except Exception:
         return []
 
 def get_market_overview() -> dict:

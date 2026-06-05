@@ -29,18 +29,17 @@ def _save(data):
         json.dump(data, f, indent=2)
 
 def _get_price(symbol: str) -> float:
-    """Fetch current price from yfinance. NSE stocks need .NS suffix."""
+    """Get reliable current price via yfinance history method."""
+    import yfinance as yf
     sym = symbol.upper()
-    # Map common index names
-    index_map = {"NIFTY": "^NSEI", "NIFTY50": "^NSEI", "BANKNIFTY": "^NSEBANK", "SENSEX": "^BSESN"}
-    if sym in index_map:
-        sym = index_map[sym]
-    elif not sym.startswith("^") and "." not in sym:
-        sym = sym + ".NS"
+    _MAP = {"NIFTY": "^NSEI", "NIFTY50": "^NSEI", "BANKNIFTY": "^NSEBANK", "SENSEX": "^BSESN"}
+    yf_sym = _MAP.get(sym, sym if ("." in sym or sym.startswith("^")) else sym + ".NS")
     try:
-        t = yf.Ticker(sym)
-        info = t.fast_info
-        return float(info.last_price or info.previous_close or 0)
+        hist = yf.Ticker(yf_sym).history(period="5d", interval="1d", auto_adjust=True)
+        if not hist.empty:
+            return round(float(hist["Close"].iloc[-1]), 2)
+        fi = yf.Ticker(yf_sym).fast_info
+        return float(getattr(fi, "last_price", 0) or getattr(fi, "previous_close", 0) or 0)
     except Exception:
         return 0.0
 

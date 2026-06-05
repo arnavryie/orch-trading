@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-const API = "http://localhost:8765";
+const API = "";
 
 export default function FundsView() {
   const [funds, setFunds] = useState<any>(null);

@@ -19,7 +19,7 @@ export default function TopNav({ activePage, onPageChange }: Props) {
     return () => clearInterval(iv);
   }, []);
 
-  const isMarketOpen = health.market === 'open';
+  const isMarketOpen = health.market_open === true;
 
   return (
     <nav className="flex-shrink-0 h-16 w-full bg-[#0d0d0d] border-b border-[#333333] flex items-center justify-between px-6 z-50">

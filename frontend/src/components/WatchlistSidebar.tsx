@@ -3,7 +3,7 @@ import { api } from '../api/client';
 
 const WATCHLIST_SYMBOLS = [
   { symbol: 'SENSEX', label: 'SENSEX', tag: 'INDEX', fallbackPrice: 61560.64, fallbackChange: -371.83, fallbackChangePct: -0.60 },
-  { symbol: 'NIFTY 50', label: 'NIFTY 50', tag: 'INDEX', badge: 'EVENT', fallbackPrice: 18181.75, fallbackChange: -104.75, fallbackChangePct: -0.57 },
+  { symbol: 'NIFTY', label: 'NIFTY 50', tag: 'INDEX', badge: 'EVENT', fallbackPrice: 18181.75, fallbackChange: -104.75, fallbackChangePct: -0.57 },
   { symbol: 'ASTRON', label: 'ASTRON', tag: '', fallbackPrice: 26.05, fallbackChange: -0.35, fallbackChangePct: -1.33 },
   { symbol: 'ASIANPAINT', label: 'ASIANPAINT', tag: '', fallbackPrice: 3092.45, fallbackChange: -45.65, fallbackChangePct: -1.45 },
   { symbol: 'RITES', label: 'RITES', tag: '', fallbackPrice: 396.50, fallbackChange: 8.15, fallbackChangePct: 2.10 },
@@ -43,7 +43,7 @@ export default function WatchlistSidebar() {
     !search || i.label.toLowerCase().includes(search.toLowerCase())
   );
 
-  const nifty = items.find(i => i.symbol === 'NIFTY 50');
+  const nifty = items.find(i => i.symbol === 'NIFTY');
   const sensex = items.find(i => i.symbol === 'SENSEX');
 
   const getPrice = (i: WatchItem) => i.livePrice ?? i.fallbackPrice;
