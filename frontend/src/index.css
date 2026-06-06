@@ -42,8 +42,8 @@
 
 @layer base {
   body {
-    background-color: #000000;
-    color: #f7ddd2;
+    background-color: #050505;
+    color: #e8e8e8;
     font-family: 'Inter', sans-serif;
     -webkit-font-smoothing: antialiased;
   }
@@ -69,4 +69,80 @@
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #555555; }
 
   .ms-fill { font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+
+  /* ─── ZERODHA-STYLE ANIMATIONS & POLISH ─────────────────────────────── */
+  /* Smooth everything by default */
+  .transition-smooth { transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1); }
+
+  /* Price flash — green/red pulse when value updates */
+  .flash-up   { animation: flashGreen 0.6s ease-out; }
+  .flash-down { animation: flashRed 0.6s ease-out; }
+
+  /* Skeleton shimmer */
+  .skeleton {
+    background: linear-gradient(90deg, #161616 25%, #222 50%, #161616 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+    border-radius: 4px;
+  }
+
+  /* Page enter */
+  .page-enter { animation: pageEnter 0.28s cubic-bezier(0.16, 1, 0.3, 1); }
+
+  /* Slide-in panel (order pad) */
+  .slide-in-right { animation: slideInRight 0.26s cubic-bezier(0.16, 1, 0.3, 1); }
+  .slide-out-right { animation: slideOutRight 0.2s ease-in forwards; }
+
+  /* Row hover lift */
+  .row-hover { transition: background 0.14s ease, transform 0.14s ease; }
+  .row-hover:hover { background: rgba(255,255,255,0.025); }
+
+  /* Button press */
+  .btn-press { transition: transform 0.08s ease, opacity 0.15s ease; }
+  .btn-press:active { transform: scale(0.96); }
+
+  /* Card hover lift */
+  .card-lift { transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease; }
+  .card-lift:hover { transform: translateY(-2px); border-color: #444; box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+
+  /* Fade in */
+  .fade-in { animation: fadeIn 0.4s ease; }
+}
+
+@keyframes flashGreen {
+  0%   { background-color: rgba(64, 229, 108, 0.28); }
+  100% { background-color: transparent; }
+}
+@keyframes flashRed {
+  0%   { background-color: rgba(255, 100, 100, 0.28); }
+  100% { background-color: transparent; }
+}
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0.5; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideOutRight {
+  from { transform: translateX(0); opacity: 1; }
+  to   { transform: translateX(100%); opacity: 0; }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Kite-style accent for primary/buy actions */
+@theme {
+  --color-kite-blue: #4184f3;
+  --color-kite-blue-dark: rgba(65, 132, 243, 0.12);
+  /* Override bullish/bearish to Kite's exact colors */
+  --color-bullish: #40e56c;
+  --color-bearish: #ff6464;
 }

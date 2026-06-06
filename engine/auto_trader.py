@@ -1,233 +1,268 @@
 """
 engine/auto_trader.py
 ─────────────────────
-Background auto-trading engine.
-Runs every 5 minutes during market hours (9:15–15:30 IST Mon–Fri).
-Uses Gemini Flash to make trade decisions.
+CONSENSUS-GATED AUTO-TRADER.
+Runs the AI council on each watchlist symbol on a loop. Only executes a demo
+trade when the council's agreement AND confidence both clear user thresholds.
+Every decision (executed or skipped) is logged for the AI track record.
 """
-
 from __future__ import annotations
 
 import asyncio
 import json
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
+from collections import deque
 
 log = logging.getLogger(__name__)
 
-MEMORY_DIR = Path.home() / ".orch-trading"
-MEMORY_FILE = MEMORY_DIR / "memory.json"
-SETTINGS_FILE = MEMORY_DIR / "settings.json"
-CONFIG_FILE = MEMORY_DIR / "config.json"
-
-DEFAULT_CONFIG = {
-    "watchlist": ["RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK", "SBIN", "NIFTY", "BANKNIFTY"],
-    "ai_provider": "gemini",
-    "broker": "demo",
-    "auto_trading": False,
-    "max_position_size": 50000,
-    "daily_loss_limit": 10000,
-    "risk_per_trade": 2.0,
-    "capital": 1000000,
-}
+DIR = Path.home() / ".orch-trading"
+SETTINGS_FILE = DIR / "settings.json"
+MEMORY_FILE = DIR / "memory.json"
 
 
-def load_config() -> dict:
-    MEMORY_DIR.mkdir(parents=True, exist_ok=True)
-    if CONFIG_FILE.exists():
+def _load_settings() -> dict:
+    DIR.mkdir(parents=True, exist_ok=True)
+    if SETTINGS_FILE.exists():
         try:
-            return json.loads(CONFIG_FILE.read_text())
+            return json.loads(SETTINGS_FILE.read_text())
         except Exception:
             pass
-    CONFIG_FILE.write_text(json.dumps(DEFAULT_CONFIG, indent=2))
-    return DEFAULT_CONFIG.copy()
+    return {}
 
 
-def save_config(config: dict):
-    CONFIG_FILE.write_text(json.dumps(config, indent=2))
-
-
-def load_memory() -> list[dict]:
+def _append_memory(entry: dict):
+    """Log a council decision to memory.json (feeds Phase 5 track record)."""
+    mem = []
     if MEMORY_FILE.exists():
         try:
-            return json.loads(MEMORY_FILE.read_text())
+            mem = json.loads(MEMORY_FILE.read_text())
         except Exception:
-            return []
-    return []
-
-
-def append_memory(entry: dict):
-    memory = load_memory()
+            mem = []
     entry["timestamp"] = datetime.now().isoformat()
-    memory.append(entry)
-    memory = memory[-200:]  # Keep last 200 entries
-    MEMORY_FILE.write_text(json.dumps(memory, indent=2))
+    mem.insert(0, entry)
+    MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    MEMORY_FILE.write_text(json.dumps(mem[:300], indent=2))
 
 
 class AutoTrader:
-    """
-    Background trading engine. Runs AI-driven trade cycles during market hours.
-    """
+    """Background engine that trades on council consensus."""
 
     def __init__(self):
         self._running = False
         self._task: asyncio.Task | None = None
-        self._cycle_count = 0
-        self._daily_pnl = 0.0
         self._status = "stopped"
+        self._cycle = 0
+        self._trades_today = 0
+        self._daily_pnl = 0.0
+        self._last_run: str | None = None
+        # In-memory rolling activity log for the live UI feed
+        self._activity: deque = deque(maxlen=50)
 
+    # ── Status ──────────────────────────────────────────────────────────
     def get_status(self) -> dict:
-        config = load_config()
+        s = _load_settings()
         return {
             "running": self._running,
             "status": self._status,
-            "cycles": self._cycle_count,
-            "daily_pnl": self._daily_pnl,
-            "auto_trading_enabled": config.get("auto_trading", False),
+            "cycle": self._cycle,
+            "trades_today": self._trades_today,
+            "daily_pnl": round(self._daily_pnl, 2),
+            "last_run": self._last_run,
+            "settings": {
+                "auto_execute": s.get("auto_execute", False),
+                "min_agreement": s.get("min_agreement", 75),
+                "min_confidence": s.get("min_confidence", 65),
+                "scan_interval_min": s.get("scan_interval_min", 5),
+                "max_position_size": s.get("max_position_size", 50000),
+                "daily_loss_limit": s.get("daily_loss_limit", 10000),
+            },
+            "activity": list(self._activity),
         }
 
+    def _log_activity(self, item: dict):
+        item["time"] = datetime.now().strftime("%H:%M:%S")
+        self._activity.appendleft(item)
+
+    # ── Lifecycle ───────────────────────────────────────────────────────
     def start(self):
         if self._running:
             return
         self._running = True
         self._status = "running"
         self._task = asyncio.create_task(self._loop())
-        log.info("[auto_trader] Engine started")
+        self._log_activity({"kind": "system", "msg": "Auto-trader started"})
+        log.info("[auto_trader] started")
 
     def stop(self):
         self._running = False
         self._status = "stopped"
         if self._task and not self._task.done():
             self._task.cancel()
-        log.info("[auto_trader] Engine stopped")
+        self._log_activity({"kind": "system", "msg": "Auto-trader stopped"})
+        log.info("[auto_trader] stopped")
 
     async def _loop(self):
-        log.info("[auto_trader] Loop active — checking every 5 minutes during market hours")
         while self._running:
             try:
+                s = _load_settings()
+                interval = max(1, int(s.get("scan_interval_min", 5))) * 60
                 from market.free_data import is_market_open
                 if is_market_open():
                     await self.run_cycle()
                 else:
                     self._status = "market_closed"
-                    log.debug("[auto_trader] Market closed — sleeping")
-                await asyncio.sleep(300)  # 5 minutes
+                    self._log_activity({"kind": "system", "msg": "Market closed — waiting"})
+                await asyncio.sleep(interval)
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                log.error("[auto_trader] Loop error: %s", e)
+                log.error("[auto_trader] loop error: %s", e)
+                self._status = "error"
                 await asyncio.sleep(60)
 
+    # ── One scan cycle ──────────────────────────────────────────────────
     async def run_cycle(self):
-        config = load_config()
-        self._cycle_count += 1
-        self._status = "analyzing"
-        log.info("[auto_trader] Cycle %d — running", self._cycle_count)
+        import sys
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from agent.council import run_council
+        from brokers import demo as broker
 
-        try:
-            # 1. Get current portfolio
-            from brokers.demo import get_demo_broker
-            broker = get_demo_broker()
-            funds = broker.get_funds()
-            holdings = broker.get_holdings()
+        s = _load_settings()
+        self._cycle += 1
+        self._last_run = datetime.now().isoformat()
+        self._status = "scanning"
 
-            portfolio = {
-                "cash": funds.available_cash,
-                "total_value": funds.total_balance,
-                "holdings": [
-                    {"symbol": h.symbol, "qty": h.quantity, "avg_price": h.avg_price,
-                     "ltp": h.last_price, "pnl": h.pnl, "pnl_pct": h.pnl_pct}
-                    for h in holdings
-                ]
+        auto_execute   = s.get("auto_execute", False)
+        min_agreement  = int(s.get("min_agreement", 75))
+        min_confidence = int(s.get("min_confidence", 65))
+        max_pos        = float(s.get("max_position_size", 50000))
+        daily_limit    = float(s.get("daily_loss_limit", 10000))
+        watchlist      = s.get("watchlist", ["RELIANCE", "TCS", "INFY", "HDFCBANK", "SBIN"])
+
+        # Daily loss circuit breaker
+        if self._daily_pnl <= -daily_limit:
+            self._status = "halted_loss_limit"
+            self._log_activity({"kind": "halt", "msg": f"Daily loss limit ₹{daily_limit:,.0f} hit — trading paused"})
+            return
+
+        funds = broker.get_funds()
+        holdings = {h["symbol"]: h for h in broker.get_holdings()}
+
+        for sym in watchlist[:8]:
+            if not self._running:
+                break
+            try:
+                result = await run_council(sym)
+            except Exception as e:
+                log.error("[auto_trader] council failed for %s: %s", sym, e)
+                continue
+
+            c = result.get("consensus", {})
+            action = c.get("action", "NO DATA")
+            agreement = c.get("agreement", 0)
+            confidence = c.get("confidence", 0)
+            price = result.get("price", 0)
+
+            gate_passed = agreement >= min_agreement and confidence >= min_confidence
+
+            decision = {
+                "kind": "decision",
+                "symbol": sym,
+                "action": action,
+                "agreement": agreement,
+                "confidence": confidence,
+                "price": price,
+                "gate_passed": gate_passed,
+                "executed": False,
+                "votes": result.get("votes", []),
             }
 
-            # 2. Check daily loss limit
-            if self._daily_pnl < -config.get("daily_loss_limit", 10000):
-                self._status = "halted_loss_limit"
-                log.warning("[auto_trader] Daily loss limit hit — halting")
-                append_memory({"type": "halt", "reason": "daily_loss_limit", "pnl": self._daily_pnl})
-                return
+            # ── BUY ──
+            if action == "BUY" and gate_passed:
+                size = result.get("suggested_size", 0) or min(max_pos, 25000)
+                size = min(size, max_pos, funds["available_cash"])
+                qty = int(size / price) if price > 0 else 0
+                if qty > 0:
+                    if auto_execute:
+                        r = broker.place_order(sym, qty, "BUY", price)
+                        decision["executed"] = r.get("success", False)
+                        decision["msg"] = r.get("message") or r.get("error", "")
+                        if r.get("success"):
+                            self._trades_today += 1
+                            self._daily_pnl -= qty * price
+                            funds = broker.get_funds()  # refresh cash
+                            _append_memory({
+                                "type": "trade_explanation",
+                                "order_id": r.get("order_id"),
+                                "symbol": sym,
+                                "side": "BUY",
+                                "qty": qty,
+                                "price": price,
+                                "consensus": result.get("consensus", {}),
+                                "personality": result.get("personality", "balanced"),
+                                "votes": result.get("votes", []),
+                                "devils_advocate": result.get("devils_advocate", {}),
+                            })
+                        self._log_activity({"kind": "trade", "msg": f"BUY {qty} {sym} @ ₹{price:,.0f} — council {agreement}% agree", "executed": decision["executed"]})
+                    else:
+                        decision["msg"] = f"Would BUY {qty} {sym} (monitor-only mode)"
+                        self._log_activity({"kind": "signal", "msg": f"BUY signal: {sym} {agreement}% agree, {confidence}% conf (not executed — monitor mode)"})
+                else:
+                    decision["msg"] = "Insufficient funds for min qty"
 
-            # 3. Fetch market data for watchlist
-            from market.free_data import get_quote
-            watchlist = config.get("watchlist", DEFAULT_CONFIG["watchlist"])
-            market_data = {}
-            for sym in watchlist[:8]:
-                try:
-                    market_data[sym] = get_quote(sym)
-                except Exception:
-                    pass
+            # ── SELL (only if we hold it) ──
+            elif action == "SELL" and gate_passed and sym in holdings:
+                qty = holdings[sym]["quantity"]
+                if auto_execute and qty > 0:
+                    r = broker.place_order(sym, qty, "SELL", price)
+                    decision["executed"] = r.get("success", False)
+                    decision["msg"] = r.get("message") or r.get("error", "")
+                    if r.get("success"):
+                        self._trades_today += 1
+                        self._daily_pnl += qty * price
+                        _append_memory({
+                            "type": "trade_explanation",
+                            "order_id": r.get("order_id"),
+                            "symbol": sym,
+                            "side": "SELL",
+                            "qty": qty,
+                            "price": price,
+                            "consensus": result.get("consensus", {}),
+                            "personality": result.get("personality", "balanced"),
+                            "votes": result.get("votes", []),
+                            "devils_advocate": result.get("devils_advocate", {}),
+                        })
+                    self._log_activity({"kind": "trade", "msg": f"SELL {qty} {sym} @ ₹{price:,.0f} — council {agreement}% agree", "executed": decision["executed"]})
+                else:
+                    decision["msg"] = f"Would SELL {qty} {sym} (monitor-only mode)"
+                    self._log_activity({"kind": "signal", "msg": f"SELL signal: {sym} (not executed — monitor mode)"})
 
-            # 4. Ask Gemini to decide
-            if not config.get("auto_trading", False):
-                self._status = "monitoring"
-                log.info("[auto_trader] Auto-trading OFF — monitoring only")
-                return
+            # ── No action ──
+            else:
+                reason = "gate not passed" if not gate_passed else f"action={action}"
+                decision["msg"] = f"No trade ({reason})"
 
-            from agent.providers.gemini import get_gemini
-            gemini = get_gemini()
-            decision = await gemini.decide_trade(portfolio, market_data, watchlist)
+            # Log every council decision for the track record (Phase 5)
+            _append_memory({
+                "type": "council_decision",
+                "symbol": sym,
+                "action": action,
+                "agreement": agreement,
+                "confidence": confidence,
+                "price": price,
+                "executed": decision["executed"],
+                "auto_execute_mode": auto_execute,
+                "consensus_summary": c.get("summary", ""),
+                "votes": [{"ai": v.get("ai"), "verdict": v.get("verdict"), "confidence": v.get("confidence")} for v in result.get("votes", [])],
+            })
 
-            # 5. Execute orders
-            from brokers.base import OrderRequest
-            max_pos_size = config.get("max_position_size", 50000)
-
-            for order_info in decision.get("orders", []):
-                sym = order_info.get("symbol", "")
-                action = order_info.get("action", "")
-                qty = order_info.get("quantity", 0)
-
-                if not sym or not action or qty <= 0:
-                    continue
-
-                ltp = market_data.get(sym, {}).get("ltp", 0)
-                if ltp <= 0:
-                    q = get_quote(sym)
-                    ltp = q["ltp"]
-
-                if action == "BUY" and ltp * qty > max_pos_size:
-                    qty = int(max_pos_size / ltp)
-
-                if qty <= 0:
-                    continue
-
-                order = OrderRequest(
-                    symbol=sym,
-                    exchange="NSE",
-                    transaction_type=action,
-                    quantity=qty,
-                    order_type="MARKET",
-                    product="CNC",
-                    tag="auto_trader",
-                )
-                resp = broker.place_order(order)
-                log.info("[auto_trader] Order %s: %s %s x%d → %s", resp.order_id, action, sym, qty, resp.status)
-
-                self._daily_pnl += (resp.average_price or 0) * qty * (-1 if action == "BUY" else 1)
-
-                append_memory({
-                    "type": "trade",
-                    "symbol": sym,
-                    "action": action,
-                    "quantity": qty,
-                    "price": resp.average_price,
-                    "status": resp.status,
-                    "reason": order_info.get("reason", ""),
-                    "commentary": decision.get("commentary", ""),
-                })
-
-            self._status = "running"
-
-        except Exception as e:
-            log.error("[auto_trader] Cycle error: %s", e)
-            self._status = "error"
+        self._status = "running" if self._running else "stopped"
 
 
 # ── Singleton ─────────────────────────────────────────────────
 _auto_trader: AutoTrader | None = None
-
 
 def get_auto_trader() -> AutoTrader:
     global _auto_trader

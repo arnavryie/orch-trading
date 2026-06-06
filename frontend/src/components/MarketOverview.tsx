@@ -1,25 +1,27 @@
-// frontend/src/components/MarketOverview.tsx
+// frontend/src/components/MarketOverview.tsx — Kite-polished with FlashPrice + SkeletonList
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
+import FlashPrice from './FlashPrice';
+import { SkeletonList } from './Skeleton';
 
 const INDICES  = ['NIFTY', 'SENSEX', 'BANKNIFTY'];
 const STOCKS   = ['RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'SBIN', 'ICICIBANK', 'WIPRO', 'BHARTIARTL'];
 
-type Q = { symbol: string; price: number; change: number; change_pct: number; high: number; low: number; market_open: boolean };
+type Q = { symbol: string; price: number; change: number; change_pct: number; high: number; low: number; };
 
 function Card({ q }: { q: Q }) {
   const up = q.change_pct >= 0;
   return (
-    <div className={`flex justify-between items-center p-3 rounded-lg border ${
-      up ? 'border-[#22c55e]/10 bg-[#22c55e]/5' : 'border-[#ef4444]/10 bg-[#ef4444]/5'
+    <div className={`card-lift row-hover flex justify-between items-center p-3 rounded-lg border cursor-pointer transition-smooth ${
+      up ? 'border-[#40e56c]/10 bg-[#40e56c]/5' : 'border-[#ff6464]/10 bg-[#ff6464]/5'
     }`}>
       <div>
-        <div className="text-white font-semibold text-sm">{q.symbol}</div>
-        <div className="text-[#555] text-[11px]">H {q.high?.toLocaleString('en-IN')} · L {q.low?.toLocaleString('en-IN')}</div>
+        <div className="text-white font-semibold text-[12.5px]">{q.symbol}</div>
+        <div className="text-[#555] text-[10px] mt-0.5">H {q.high?.toLocaleString('en-IN')} · L {q.low?.toLocaleString('en-IN')}</div>
       </div>
       <div className="text-right">
-        <div className="text-white font-bold text-sm">₹{q.price?.toLocaleString('en-IN')}</div>
-        <div className={`text-[11px] font-medium ${up ? 'text-[#22c55e]' : 'text-[#ef4444]'}`}>
+        <FlashPrice value={q.price} prefix="" className={`text-[12.5px] font-bold ${up ? 'text-[#40e56c]' : 'text-[#ff6464]'}`} />
+        <div className={`text-[10px] font-medium mt-0.5 ${up ? 'text-[#40e56c]/80' : 'text-[#ff6464]/80'}`}>
           {up ? '▲' : '▼'} {Math.abs(q.change_pct ?? 0).toFixed(2)}%
         </div>
       </div>
@@ -34,7 +36,7 @@ export default function MarketOverview() {
 
   const load = async (syms: string[]) => {
     setLoading(true);
-    const res = await Promise.all(syms.map(s => api.market.getQuote(s).catch(() => ({ symbol: s, price: 0, change: 0, change_pct: 0, high: 0, low: 0, market_open: false }))));
+    const res = await Promise.all(syms.map(s => api.market.getQuote(s).catch(() => ({ symbol: s, price: 0, change: 0, change_pct: 0, high: 0, low: 0 }))));
     setQuotes(res as Q[]);
     setLoading(false);
   };
@@ -51,15 +53,15 @@ export default function MarketOverview() {
       <div className="flex gap-2 mb-4">
         {(['indices', 'stocks'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)}
-            className={`text-xs px-3 py-1 rounded border transition-colors capitalize ${
-              tab === t ? 'bg-primary/10 text-primary border-primary/30' : 'text-[#666] border-[#2a2a2a] hover:text-white'
+            className={`text-[11px] px-3 py-1 rounded border transition-smooth btn-press capitalize ${
+              tab === t ? 'bg-[#4184f3]/10 text-[#4184f3] border-[#4184f3]/30' : 'text-[#666] border-[#2a2a2a] hover:text-white'
             }`}>
             {t === 'indices' ? 'Indices' : 'Top Stocks'}
           </button>
         ))}
       </div>
       {loading
-        ? <div className="text-[#555] text-sm text-center py-6">Loading market data…</div>
+        ? <SkeletonList rows={3} />
         : <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
             {quotes.map(q => <Card key={q.symbol} q={q} />)}
           </div>

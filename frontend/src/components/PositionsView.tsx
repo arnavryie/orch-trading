@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
+import FlashPrice from './FlashPrice';
+import CountUp from './CountUp';
+import { SkeletonList } from './Skeleton';
 
 const DEMO_POSITIONS = [
   { product: 'NRML', instrument: 'USDINR 23JUN FUT', exchange: 'CDS', qty: -1, avg: 82.0375, ltp: 82.5275, pnl: -490, chg: 0.60 },
@@ -78,16 +81,16 @@ export default function PositionsView() {
               </thead>
               <tbody className="font-mono text-[13px]">
                 {loading ? (
-                  <tr><td colSpan={8} className="p-8 text-center text-[#888] animate-pulse">Fetching positions...</td></tr>
+                  <tr><td colSpan={8} className="p-0"><SkeletonList rows={5} /></td></tr>
                 ) : rows.map((p, i) => (
-                  <tr key={i} className={`border-b border-[#333333] hover:bg-[#252525] transition-colors ${i % 2 === 1 ? 'bg-[#0d0d0d]' : ''}`}>
+                  <tr key={i} className={`border-b border-[#333333] transition-colors row-hover ${i % 2 === 1 ? 'bg-[#0d0d0d]' : ''}`}>
                     <td className="p-3"><input type="checkbox" className="rounded bg-black border-[#333] text-primary focus:ring-primary focus:ring-offset-black" /></td>
                     <td className="p-3"><ProductBadge product={p.product} /></td>
                     <td className="p-3 text-[#f7ddd2]">{p.instrument} <span className="text-[10px] text-[#e2bfb0] ml-1">{p.exchange}</span></td>
                     <td className={`p-3 text-right font-semibold ${p.qty < 0 ? 'text-[#ffb4ab]' : 'text-[#3b82f6]'}`}>{p.qty}</td>
                     <td className="p-3 text-right text-[#e2bfb0]">{p.avg?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
-                    <td className="p-3 text-right text-[#e2bfb0]">{p.ltp?.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</td>
-                    <td className={`p-3 text-right font-semibold ${p.pnl >= 0 ? 'text-[#40e56c]' : 'text-[#ffb4ab]'}`}>{p.pnl >= 0 ? '+' : ''}{p.pnl.toFixed(2)}</td>
+                    <td className="p-3 text-right text-[#e2bfb0]"><FlashPrice value={p.ltp} prefix="" decimals={4} /></td>
+                    <td className={`p-3 text-right font-semibold ${p.pnl >= 0 ? 'text-[#40e56c]' : 'text-[#ffb4ab]'}`}><FlashPrice value={p.pnl} prefix={p.pnl >= 0 ? '+' : ''} decimals={2} /></td>
                     <td className={`p-3 text-right ${p.chg >= 0 ? 'text-[#40e56c]' : 'text-[#ffb4ab]'}`}>{p.chg >= 0 ? '+' : ''}{p.chg.toFixed(2)}%</td>
                   </tr>
                 ))}
@@ -96,7 +99,7 @@ export default function PositionsView() {
                 <tr className="bg-[#1a1a1a] font-mono text-[13px]">
                   <td className="p-4 text-right text-[#e2bfb0] font-semibold" colSpan={6}>Total</td>
                   <td className={`p-4 text-right font-bold text-[17px] ${totalPnl >= 0 ? 'text-[#40e56c]' : 'text-[#ffb4ab]'}`}>
-                    {totalPnl >= 0 ? '+' : ''}{totalPnl.toFixed(2)}
+                    <CountUp value={totalPnl} prefix={totalPnl >= 0 ? '+' : ''} decimals={2} />
                   </td>
                   <td />
                 </tr>

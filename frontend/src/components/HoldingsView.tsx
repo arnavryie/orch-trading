@@ -1,5 +1,7 @@
-import { TVMiniChart } from "./TVMiniChart";
 import { useEffect, useState } from "react";
+import FlashPrice from "./FlashPrice";
+import CountUp from "./CountUp";
+import { SkeletonList } from "./Skeleton";
 
 const API = "";
 
@@ -19,24 +21,24 @@ export default function HoldingsView() {
     }).catch(() => setLoading(false));
   }, []);
 
-  if (loading) return <div style={{padding:"24px", color:"#aaa"}}>Loading holdings...</div>;
+  if (loading) return <div className="p-6"><SkeletonList rows={5} /></div>;
 
   return (
     <div className="flex-1 overflow-y-auto bg-black custom-scrollbar" style={{ padding: "16px 24px", paddingBottom: "80px" }}>
       {funds && (
         <div style={{ display: "flex", gap: "16px", marginBottom: "24px" }}>
-          <div style={{ background: "#1e1e1e", borderRadius: "8px", padding: "16px", flex: 1 }}>
-            <div style={{ color: "#888", fontSize: "12px" }}>Available Cash</div>
-            <div style={{ color: "#fff", fontSize: "22px", fontWeight: "bold" }}>₹{funds.available_cash?.toLocaleString("en-IN")}</div>
+          <div className="card-lift" style={{ background: "#0f0f0f", borderRadius: "8px", padding: "16px", flex: 1, border: "1px solid #1a1a1a" }}>
+            <div style={{ color: "#888", fontSize: "12px", marginBottom: "4px" }}>Available Cash</div>
+            <div style={{ color: "#fff", fontSize: "22px", fontWeight: "bold" }}><CountUp value={funds.available_cash} /></div>
           </div>
-          <div style={{ background: "#1e1e1e", borderRadius: "8px", padding: "16px", flex: 1 }}>
-            <div style={{ color: "#888", fontSize: "12px" }}>Portfolio Value</div>
-            <div style={{ color: "#fff", fontSize: "22px", fontWeight: "bold" }}>₹{funds.portfolio_value?.toLocaleString("en-IN")}</div>
+          <div className="card-lift" style={{ background: "#0f0f0f", borderRadius: "8px", padding: "16px", flex: 1, border: "1px solid #1a1a1a" }}>
+            <div style={{ color: "#888", fontSize: "12px", marginBottom: "4px" }}>Portfolio Value</div>
+            <div style={{ color: "#fff", fontSize: "22px", fontWeight: "bold" }}><CountUp value={funds.portfolio_value} /></div>
           </div>
-          <div style={{ background: "#1e1e1e", borderRadius: "8px", padding: "16px", flex: 1 }}>
-            <div style={{ color: "#888", fontSize: "12px" }}>Total P&L</div>
-            <div style={{ color: (funds.pnl || 0) >= 0 ? "#22c55e" : "#ef4444", fontSize: "22px", fontWeight: "bold" }}>
-              ₹{funds.pnl?.toLocaleString("en-IN")} ({funds.pnl_pct?.toFixed(1)}%)
+          <div className="card-lift" style={{ background: "#0f0f0f", borderRadius: "8px", padding: "16px", flex: 1, border: "1px solid #1a1a1a" }}>
+            <div style={{ color: "#888", fontSize: "12px", marginBottom: "4px" }}>Total P&L</div>
+            <div style={{ color: (funds.pnl || 0) >= 0 ? "#40e56c" : "#ffb4ab", fontSize: "22px", fontWeight: "bold" }}>
+              <CountUp value={funds.pnl} prefix={funds.pnl >= 0 ? '+₹' : '-₹'} /> ({funds.pnl_pct?.toFixed(1)}%)
             </div>
           </div>
         </div>
@@ -45,33 +47,28 @@ export default function HoldingsView() {
       {holdings.length === 0 ? (
         <div style={{ color: "#888", textAlign: "center", marginTop: "60px" }}>
           <div style={{ fontSize: "32px", marginBottom: "8px" }}>💼</div>
-          <div>No holdings yet. Use the chat below to buy stocks.</div>
-          <div style={{ color: "#555", marginTop: "8px" }}>Try: "buy reliance 10 shares"</div>
+          <div>No holdings yet. Use the Watchlist to buy stocks.</div>
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))", gap: "16px" }}>
           {holdings.map((h: any) => (
-            <div key={h.symbol} style={{ background: "#1e1e1e", borderRadius: "8px", padding: "16px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+            <div key={h.symbol} className="row-hover card-lift bg-[#0f0f0f] rounded-lg p-4 border border-[#1a1a1a]">
+              <div className="flex justify-between items-start">
                 <div>
-                  <span style={{ color: "#fff", fontWeight: "bold", fontSize: "16px" }}>{h.symbol}</span>
-                  <span style={{ color: "#888", fontSize: "12px", marginLeft: "8px" }}>NSE • {h.quantity} shares</span>
+                  <div className="text-white font-semibold text-sm">{h.symbol}</div>
+                  <div className="text-[#555] text-[11px]">NSE · {h.quantity} qty · avg ₹{h.avg_price}</div>
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ color: "#fff", fontWeight: "bold" }}>₹{h.current_price?.toLocaleString("en-IN")}</div>
-                  <div style={{ color: h.pnl >= 0 ? "#22c55e" : "#ef4444", fontSize: "12px" }}>
-                    {h.pnl >= 0 ? "▲" : "▼"} ₹{Math.abs(h.pnl)?.toFixed(0)} ({Math.abs(h.pnl_pct)?.toFixed(1)}%)
+                <div className="text-right">
+                  <FlashPrice value={h.current_price} className="text-white font-semibold text-sm" />
+                  <div className={`text-[11px] mt-0.5 ${h.pnl >= 0 ? 'text-bullish' : 'text-bearish'}`}>
+                    {h.pnl >= 0 ? '+' : ''}₹{Math.abs(h.pnl).toFixed(0)} ({h.pnl >= 0 ? '+' : ''}{h.pnl_pct?.toFixed(2)}%)
                   </div>
                 </div>
               </div>
-              <div style={{ height: "4px", background: "#2d2d2d", borderRadius: "2px", marginTop: "8px" }}>
-                <div style={{
-                  height: "100%",
-                  width: `${Math.min(Math.abs(h.pnl_pct), 100)}%`,
-                  background: h.pnl >= 0 ? "#22c55e" : "#ef4444",
-                  borderRadius: "2px",
-                  transition: "width 0.5s",
-                }} />
+              {/* P&L bar */}
+              <div className="h-1 bg-[#1a1a1a] rounded-full mt-3 overflow-hidden">
+                <div className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(Math.abs(h.pnl_pct || 0) * 5, 100)}%`, background: h.pnl >= 0 ? '#40e56c' : '#ff6464' }} />
               </div>
             </div>
           ))}

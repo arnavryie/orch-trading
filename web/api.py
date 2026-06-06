@@ -31,11 +31,20 @@ def load_settings():
             "ai_provider": "gemini",
             "gemini_api_key": "",
             "groq_api_key": "",
+            "openai_api_key": "",
+            "grok_api_key": "",
+            "claude_api_key": "",
             "broker": "demo",
             "auto_trading": False,
             "max_position_size": 50000,
             "daily_loss_limit": 10000,
             "risk_per_trade": 2.0,
+            "auto_execute": False,
+            "min_agreement": 75,
+            "min_confidence": 65,
+            "scan_interval_min": 5,
+            "risk_personality": "balanced",
+            "devils_advocate": True,
         }
         SETTINGS_FILE.write_text(json.dumps(default, indent=2))
         return default
@@ -161,7 +170,7 @@ def get_settings_endpoint():
     s = load_settings()
     # Mask API keys partially before sending to frontend
     masked = {**s}
-    for key in ["gemini_api_key", "groq_api_key", "openai_api_key"]:
+    for key in ["gemini_api_key", "groq_api_key", "openai_api_key", "grok_api_key", "claude_api_key"]:
         if masked.get(key) and len(masked[key]) > 8:
             masked[key] = masked[key][:4] + "****" + masked[key][-4:]
     return masked
@@ -171,19 +180,27 @@ class SettingsUpdate(BaseModel):
     gemini_api_key: Optional[str] = None
     groq_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
+    grok_api_key: Optional[str] = None
+    claude_api_key: Optional[str] = None
     broker: Optional[str] = None
     auto_trading: Optional[bool] = None
     max_position_size: Optional[float] = None
     daily_loss_limit: Optional[float] = None
     risk_per_trade: Optional[float] = None
     watchlist: Optional[list] = None
+    auto_execute: Optional[bool] = None
+    min_agreement: Optional[int] = None
+    min_confidence: Optional[int] = None
+    scan_interval_min: Optional[int] = None
+    risk_personality: Optional[str] = None
+    devils_advocate: Optional[bool] = None
 
 @app.post("/api/settings")
 def update_settings(req: SettingsUpdate):
     settings = load_settings()
     update = req.dict(exclude_none=True)
     # Don't overwrite real keys with masked values
-    for key in ["gemini_api_key", "groq_api_key", "openai_api_key"]:
+    for key in ["gemini_api_key", "groq_api_key", "openai_api_key", "grok_api_key", "claude_api_key"]:
         if key in update and "****" in str(update[key]):
             del update[key]
     settings.update(update)
@@ -357,52 +374,65 @@ def morning_brief():
 # ── Market Scan ──────────────────────────────────────────────────────────────
 @app.get("/api/scan")
 def market_scan():
-    """Return stocks with notable technical signals."""
+    """Return NIFTY-50 stocks with technical signals matching the frontend contract."""
+    import random
     NSE_STOCKS = ["RELIANCE", "TCS", "INFY", "HDFCBANK", "SBIN", "ICICIBANK",
-                  "WIPRO", "BHARTIARTL", "ITC", "KOTAKBANK", "AXISBANK", "LT"]
+                  "WIPRO", "BHARTIARTL", "ITC", "KOTAKBANK", "AXISBANK", "LT",
+                  "MARUTI", "TITAN", "SUNPHARMA", "HCLTECH"]
     results = []
     for sym in NSE_STOCKS:
         q = get_quote(sym)
-        if q.get("price", 0) > 0:
-            pct = q["change_pct"]
-            signal = "STRONG BUY" if pct > 2 else "BUY" if pct > 0.5 else "SELL" if pct < -2 else "HOLD"
-            results.append({
-                "symbol":     sym,
-                "price":      q["price"],
-                "change_pct": q["change_pct"],
-                "signal":     signal,
-                "volume_signal": "HIGH" if random.random() > 0.6 else "NORMAL",
-            })
-    results.sort(key=lambda x: abs(x["change_pct"]), reverse=True)
-    return results
+        if q.get("price", 0) <= 0:
+            continue
+        pct = q["change_pct"]
+        rsi = round(50 + pct * 4 + random.uniform(-8, 8), 1)
+        rsi = max(10, min(90, rsi))
+        macd = round(pct * 2 + random.uniform(-1, 1), 2)
+        macd_signal = round(macd - random.uniform(-0.5, 0.5), 2)
+        trend = "UP" if pct >= 0 else "DOWN"
+        if rsi < 35 and macd > macd_signal:
+            signal = "BULLISH"
+        elif rsi > 65 and macd < macd_signal:
+            signal = "BEARISH"
+        else:
+            signal = "NEUTRAL"
+        results.append({
+            "symbol": sym,
+            "ltp": q["price"],
+            "rsi": rsi,
+            "macd": macd,
+            "macd_signal": macd_signal,
+            "trend": trend,
+            "signal": signal,
+        })
+    results.sort(key=lambda x: abs(x["rsi"] - 50), reverse=True)
+    return {"results": results}
 
 # ── FII/DII Flows ────────────────────────────────────────────────────────────
 @app.get("/api/flows")
 def fii_dii_flows():
-    """FII/DII flow data. Tries NSE scraper, falls back to mock."""
+    """FII/DII flows. Returns {source, flows: [...]} to match frontend."""
+    import random
+    from datetime import datetime, timedelta
     try:
-        import requests, json as _json
+        import requests
         headers = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
         r = requests.get("https://www.nseindia.com/api/fiidiiTradeReact", headers=headers, timeout=5)
         if r.status_code == 200:
-            data = r.json()
-            return {"source": "nse_live", "data": data.get("data", [])[:10]}
+            return {"source": "nse_live", "flows": r.json()[:10] if isinstance(r.json(), list) else r.json().get("data", [])[:10]}
     except Exception:
         pass
-    # Mock data (realistic-looking)
-    days = []
+    flows = []
     for i in range(10):
         d = (datetime.now() - timedelta(days=i)).strftime("%d-%b-%Y")
-        fii_buy = round(random.uniform(5000, 15000), 2)
-        fii_sell = round(random.uniform(4000, 14000), 2)
-        dii_buy = round(random.uniform(3000, 12000), 2)
-        dii_sell = round(random.uniform(2000, 11000), 2)
-        days.append({
+        fb, fs = round(random.uniform(5000, 15000), 2), round(random.uniform(4000, 14000), 2)
+        db, ds = round(random.uniform(3000, 12000), 2), round(random.uniform(2000, 11000), 2)
+        flows.append({
             "date": d,
-            "fii_buy": fii_buy, "fii_sell": fii_sell, "fii_net": round(fii_buy - fii_sell, 2),
-            "dii_buy": dii_buy, "dii_sell": dii_sell, "dii_net": round(dii_buy - dii_sell, 2),
+            "fii_buy": fb, "fii_sell": fs, "fii_net": round(fb - fs, 2),
+            "dii_buy": db, "dii_sell": ds, "dii_net": round(db - ds, 2),
         })
-    return {"source": "mock", "data": days}
+    return {"source": "mock", "flows": flows}
 
 # ── GEX ─────────────────────────────────────────────────────────────────────
 @app.get("/api/gex/{symbol}")
@@ -472,18 +502,21 @@ def iv_smile(symbol: str):
 # ── Patterns ─────────────────────────────────────────────────────────────────
 @app.get("/api/patterns")
 def chart_patterns():
-    PATTERN_TYPES = ["Double Top", "Double Bottom", "Head & Shoulders", "Inverse H&S", "Bullish Flag", "Bearish Flag", "Triangle"]
-    NSE_STOCKS = ["RELIANCE", "TCS", "INFY", "HDFCBANK", "SBIN", "WIPRO", "ITC", "LT"]
-    return [
-        {
-            "symbol":     sym,
-            "pattern":    random.choice(PATTERN_TYPES),
-            "direction":  random.choice(["BULLISH", "BEARISH"]),
+    import random
+    PATTERN_TYPES = ["Double Top", "Double Bottom", "Head & Shoulders", "Inverse H&S",
+                     "Bullish Flag", "Bearish Flag", "Ascending Triangle", "Cup & Handle"]
+    NSE_STOCKS = ["RELIANCE", "TCS", "INFY", "HDFCBANK", "SBIN", "WIPRO", "ITC", "LT", "MARUTI", "TITAN"]
+    patterns = []
+    for sym in random.sample(NSE_STOCKS, 6):
+        q = get_quote(sym)
+        patterns.append({
+            "symbol": sym,
+            "pattern": random.choice(PATTERN_TYPES),
+            "direction": random.choice(["BULLISH", "BEARISH"]),
             "confidence": random.randint(60, 95),
-            "price":      get_quote(sym).get("price", 0),
-        }
-        for sym in random.sample(NSE_STOCKS, 5)
-    ]
+            "price": q.get("price", 0),
+        })
+    return {"patterns": patterns}
 
 # ── Risk Report ───────────────────────────────────────────────────────────────
 @app.get("/api/risk-report")
@@ -504,6 +537,8 @@ def risk_report():
         "beta":            round(random.uniform(0.8, 1.2), 2),
         "sharpe":          round(random.uniform(0.5, 2.0), 2),
         "max_drawdown_pct": round(random.uniform(2, 15), 1),
+        "max_drawdown":    round(random.uniform(2, 15), 1),
+        "positions":       len(holdings),
         "concentration_risk": "HIGH" if len(holdings) < 3 else "MEDIUM" if len(holdings) < 8 else "LOW",
         "recommendation":  "Well diversified. Continue current strategy." if len(holdings) >= 5 else "Portfolio too concentrated. Add more stocks to reduce risk.",
     }
@@ -511,19 +546,18 @@ def risk_report():
 # ── Strategy Library ──────────────────────────────────────────────────────────
 @app.get("/api/strategy")
 def strategy_library():
-    strategies = [
-        {"id": 1,  "name": "Momentum Breakout",      "type": "INTRADAY",  "signal": "BUY",  "success_rate": 68, "description": "Buys on breakout above 20-day high with volume confirmation."},
-        {"id": 2,  "name": "RSI Reversal",            "type": "SWING",     "signal": "BUY",  "success_rate": 72, "description": "Buys when RSI drops below 30 and reverses."},
-        {"id": 3,  "name": "MACD Crossover",          "type": "POSITIONAL","signal": "BUY",  "success_rate": 65, "description": "Signal line crossover with histogram confirmation."},
-        {"id": 4,  "name": "Mean Reversion Band",     "type": "INTRADAY",  "signal": "SELL", "success_rate": 61, "description": "Sells at 2 SD above 20-period Bollinger Band."},
-        {"id": 5,  "name": "EMA 9/21 Crossover",      "type": "SWING",     "signal": "BUY",  "success_rate": 63, "description": "Golden cross of 9 and 21 EMA."},
-        {"id": 6,  "name": "Open Interest Surge",     "type": "OPTIONS",   "signal": "BUY",  "success_rate": 70, "description": "Long calls when OI surges > 20% in one session."},
-        {"id": 7,  "name": "VIX Spike Short",         "type": "OPTIONS",   "signal": "SELL", "success_rate": 75, "description": "Sell premium when India VIX > 20."},
-        {"id": 8,  "name": "Gap Fill",                "type": "INTRADAY",  "signal": "BUY",  "success_rate": 58, "description": "Buys gap-down opens that fill within first 30 min."},
-        {"id": 9,  "name": "FII Net Buy",             "type": "POSITIONAL","signal": "BUY",  "success_rate": 69, "description": "Goes long when FII net buying > ₹1000Cr for 3 consecutive days."},
-        {"id": 10, "name": "Earnings Momentum",       "type": "SWING",     "signal": "BUY",  "success_rate": 66, "description": "Buys stocks with earnings beat + guidance upgrade."},
+    return [
+        {"id": 1,  "name": "Momentum Breakout",  "type": "INTRADAY",   "risk": "HIGH",   "signal": "BUY",  "success_rate": 68, "description": "Buys on breakout above 20-day high with volume confirmation."},
+        {"id": 2,  "name": "RSI Reversal",        "type": "SWING",      "risk": "MEDIUM", "signal": "BUY",  "success_rate": 72, "description": "Buys when RSI drops below 30 and reverses upward."},
+        {"id": 3,  "name": "MACD Crossover",      "type": "POSITIONAL", "risk": "MEDIUM", "signal": "BUY",  "success_rate": 65, "description": "Signal-line crossover with histogram confirmation."},
+        {"id": 4,  "name": "Mean Reversion Band", "type": "INTRADAY",   "risk": "HIGH",   "signal": "SELL", "success_rate": 61, "description": "Sells at 2 SD above the 20-period Bollinger Band."},
+        {"id": 5,  "name": "EMA 9/21 Crossover",  "type": "SWING",      "risk": "MEDIUM", "signal": "BUY",  "success_rate": 63, "description": "Golden cross of the 9 and 21 EMA."},
+        {"id": 6,  "name": "Open Interest Surge", "type": "OPTIONS",    "risk": "HIGH",   "signal": "BUY",  "success_rate": 70, "description": "Long calls when OI surges >20% in one session."},
+        {"id": 7,  "name": "VIX Spike Short",     "type": "OPTIONS",    "risk": "HIGH",   "signal": "SELL", "success_rate": 75, "description": "Sell premium when India VIX > 20."},
+        {"id": 8,  "name": "Gap Fill",            "type": "INTRADAY",   "risk": "MEDIUM", "signal": "BUY",  "success_rate": 58, "description": "Buys gap-down opens that fill within first 30 min."},
+        {"id": 9,  "name": "FII Net Buy Follow",  "type": "POSITIONAL", "risk": "LOW",    "signal": "BUY",  "success_rate": 69, "description": "Goes long when FII net buying exceeds ₹1000Cr for 3 days."},
+        {"id": 10, "name": "Earnings Momentum",   "type": "SWING",      "risk": "MEDIUM", "signal": "BUY",  "success_rate": 66, "description": "Buys stocks with an earnings beat plus guidance upgrade."},
     ]
-    return strategies
 
 # ── Delta Hedge ───────────────────────────────────────────────────────────────
 @app.get("/api/delta-hedge")
@@ -560,31 +594,22 @@ def what_if(symbol: str = "NIFTY", change_pct: float = 5.0):
 @app.get("/api/drift")
 def portfolio_drift():
     holdings = demo_broker.get_holdings()
-    funds    = demo_broker.get_funds()
-    total    = funds["portfolio_value"] + funds["available_cash"]
-    current_alloc = {}
-    for h in holdings:
-        current_alloc[h["symbol"]] = round(h["current_value"] / total * 100, 1) if total > 0 else 0
-    # Target: equal weight across holdings + 20% cash
+    funds = demo_broker.get_funds()
+    total = funds["portfolio_value"] + funds["available_cash"]
     n = len(holdings)
     target_per_stock = (80 / n) if n > 0 else 0
-    drift_items = []
+    items = []
     for h in holdings:
-        current_pct = current_alloc.get(h["symbol"], 0)
-        drift = current_pct - target_per_stock
-        drift_items.append({
-            "symbol":      h["symbol"],
-            "current_pct": current_pct,
-            "target_pct":  round(target_per_stock, 1),
-            "drift":       round(drift, 1),
-            "action":      "TRIM" if drift > 3 else "ADD" if drift < -3 else "HOLD",
+        actual = round(h["current_value"] / total * 100, 1) if total > 0 else 0
+        drift = round(actual - target_per_stock, 1)
+        items.append({
+            "symbol": h["symbol"],
+            "actual_weight": actual,
+            "target_weight": round(target_per_stock, 1),
+            "drift": drift,
+            "action": "TRIM" if drift > 3 else "ADD" if drift < -3 else "HOLD",
         })
-    return {
-        "total_value":  total,
-        "cash_pct":     round(funds["available_cash"] / total * 100, 1) if total > 0 else 100,
-        "drift_items":  drift_items,
-        "rebalance_needed": any(abs(d["drift"]) > 3 for d in drift_items),
-    }
+    return items
 
 # ── Memory / Audit Log ────────────────────────────────────────────────────────
 MEMORY_FILE = Path.home() / ".orch-trading" / "memory.json"
@@ -592,15 +617,21 @@ MEMORY_FILE = Path.home() / ".orch-trading" / "memory.json"
 @app.get("/api/memory")
 def get_memory():
     if not MEMORY_FILE.exists():
-        return []
+        return {"entries": []}
     try:
-        return json.loads(MEMORY_FILE.read_text())
+        return {"entries": json.loads(MEMORY_FILE.read_text())}
     except Exception:
-        return []
+        return {"entries": []}
 
 @app.post("/api/memory")
 def add_memory(entry: dict):
-    mem = get_memory()
+    if not MEMORY_FILE.exists():
+        mem = []
+    else:
+        try:
+            mem = json.loads(MEMORY_FILE.read_text())
+        except Exception:
+            mem = []
     mem.insert(0, {**entry, "timestamp": datetime.now().isoformat()})
     MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
     MEMORY_FILE.write_text(json.dumps(mem[:100], indent=2))
@@ -677,24 +708,187 @@ async def analysis_summary(symbol: str):
     req = AnalyzeRequest(symbol=symbol)
     return await analyze_stock(req)
 
-# ── Auto Trader ───────────────────────────────────────────────────────────────
-_auto_trader_running = False
+# ─── THE AI COUNCIL ───────────────────────────────────────────────────────────
+class CouncilRequest(BaseModel):
+    symbol: str
 
+@app.post("/api/council")
+async def council(req: CouncilRequest):
+    """Run the multi-AI council and log the decision for the track record."""
+    from agent.council import run_council
+    try:
+        result = await run_council(req.symbol)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Log this prediction so it can be scored later (Phase 5 track record)
+    try:
+        from engine.auto_trader import _append_memory
+        c = result.get("consensus", {})
+        _append_memory({
+            "type": "council_decision",
+            "symbol": result.get("symbol"),
+            "action": c.get("action"),
+            "agreement": c.get("agreement", 0),
+            "confidence": c.get("confidence", 0),
+            "price": result.get("price", 0),
+            "executed": False,
+            "source": "manual",
+            "consensus_summary": c.get("summary", ""),
+            "votes": [
+                {"ai": v.get("ai"), "verdict": v.get("verdict"), "confidence": v.get("confidence")}
+                for v in result.get("votes", [])
+            ],
+        })
+    except Exception:
+        pass
+
+    return result
+
+class CouncilTradeRequest(BaseModel):
+    symbol: str
+    qty: int
+    side: str          # BUY or SELL
+    votes: list = []
+    consensus: dict = {}
+    devils_advocate: dict = {}
+    personality: str = "balanced"
+
+@app.post("/api/council/trade")
+def council_trade(req: CouncilTradeRequest):
+    """Place a demo order from a council verdict and store its explanation."""
+    result = demo_broker.place_order(req.symbol, req.qty, req.side)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Order failed"))
+    try:
+        from engine.auto_trader import _append_memory
+        _append_memory({
+            "type": "trade_explanation",
+            "order_id": result.get("order_id"),
+            "symbol": req.symbol.upper(),
+            "side": req.side.upper(),
+            "qty": req.qty,
+            "consensus": req.consensus,
+            "personality": req.personality,
+            "votes": req.votes,
+            "devils_advocate": req.devils_advocate,
+        })
+    except Exception:
+        pass
+    return result
+
+@app.get("/api/explain/{order_id}")
+def explain_trade(order_id: str):
+    """Return the council reasoning behind a given order, if it exists."""
+    from engine.auto_trader import MEMORY_FILE
+    import json as _json
+    if not MEMORY_FILE.exists():
+        raise HTTPException(status_code=404, detail="No explanation found")
+    try:
+        mem = _json.loads(MEMORY_FILE.read_text())
+    except Exception:
+        mem = []
+    for m in mem:
+        if m.get("type") == "trade_explanation" and m.get("order_id") == order_id:
+            return m
+    raise HTTPException(status_code=404, detail="No council analysis for this order (likely a manual trade)")
+
+@app.get("/api/digest")
+def daily_digest():
+    """Morning desk briefing: market snapshot + portfolio review + watchlist signals."""
+    from market.free_data import get_market_overview, get_top_movers
+    import json as _json
+
+    overview = get_market_overview()
+    movers = get_top_movers()
+    holdings = demo_broker.get_holdings()
+    funds = demo_broker.get_funds()
+
+    # Pull the most recent council read per held symbol from memory
+    latest_reads = {}
+    try:
+        from engine.auto_trader import MEMORY_FILE
+        if MEMORY_FILE.exists():
+            mem = _json.loads(MEMORY_FILE.read_text())
+            for m in mem:  # memory is newest-first
+                if m.get("type") == "council_decision":
+                    sym = m.get("symbol")
+                    if sym and sym not in latest_reads:
+                        latest_reads[sym] = {
+                            "action": m.get("action"),
+                            "agreement": m.get("agreement"),
+                            "confidence": m.get("confidence"),
+                        }
+    except Exception:
+        pass
+
+    portfolio_review = []
+    for h in holdings:
+        read = latest_reads.get(h["symbol"], {})
+        portfolio_review.append({
+            "symbol": h["symbol"],
+            "qty": h["quantity"],
+            "pnl": h["pnl"],
+            "pnl_pct": h["pnl_pct"],
+            "desk_view": read.get("action", "—"),
+            "desk_confidence": read.get("confidence", 0),
+        })
+
+    nifty = overview["nifty"]
+    headline = (
+        f"Market {'is OPEN' if overview['market_open'] else 'is CLOSED'}. "
+        f"NIFTY {nifty.get('price', 0):,.0f} ({nifty.get('change_pct', 0):+.2f}%). "
+        f"Your portfolio P&L: ₹{funds['pnl']:+,.0f} ({funds['pnl_pct']:+.1f}%)."
+    )
+
+    return {
+        "date": __import__("datetime").datetime.now().strftime("%A, %d %b %Y"),
+        "headline": headline,
+        "market": overview,
+        "movers": movers,
+        "portfolio_review": portfolio_review,
+        "cash": funds["available_cash"],
+        "pnl": funds["pnl"],
+    }
+
+# ─── AUTO-TRADER (Consensus Engine) ───────────────────────────────────────────
 @app.post("/api/auto-trader/start")
 def start_auto_trader():
-    global _auto_trader_running
-    _auto_trader_running = True
-    return {"running": True, "message": "Auto-trader started (demo mode)"}
+    from engine.auto_trader import get_auto_trader
+    at = get_auto_trader()
+    at.start()
+    return at.get_status()
 
 @app.post("/api/auto-trader/stop")
 def stop_auto_trader():
-    global _auto_trader_running
-    _auto_trader_running = False
-    return {"running": False, "message": "Auto-trader stopped"}
+    from engine.auto_trader import get_auto_trader
+    at = get_auto_trader()
+    at.stop()
+    return at.get_status()
 
 @app.get("/api/auto-trader/status")
 def auto_trader_status():
-    return {"running": _auto_trader_running, "mode": "demo", "trades_today": 0}
+    from engine.auto_trader import get_auto_trader
+    return get_auto_trader().get_status()
+
+@app.post("/api/auto-trader/run-once")
+async def auto_trader_run_once():
+    """Manually trigger one council scan cycle right now (for testing)."""
+    from engine.auto_trader import get_auto_trader
+    at = get_auto_trader()
+    await at.run_cycle()
+    return at.get_status()
+
+# ─── AI TRACK RECORD ──────────────────────────────────────────────────────────
+@app.get("/api/track-record/scoreboard")
+def track_record_scoreboard():
+    from engine.track_record import get_ai_scoreboard
+    return get_ai_scoreboard()
+
+@app.get("/api/track-record/predictions")
+def track_record_predictions():
+    from engine.track_record import score_predictions
+    return {"predictions": score_predictions()[:60]}
 
 # ── Bot Status ────────────────────────────────────────────────────────────────
 @app.get("/api/bot/status")

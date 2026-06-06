@@ -1,161 +1,126 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
+import FlashPrice from './FlashPrice';
 
-const WATCHLIST_SYMBOLS = [
-  { symbol: 'SENSEX', label: 'SENSEX', tag: 'INDEX', fallbackPrice: 61560.64, fallbackChange: -371.83, fallbackChangePct: -0.60 },
-  { symbol: 'NIFTY', label: 'NIFTY 50', tag: 'INDEX', badge: 'EVENT', fallbackPrice: 18181.75, fallbackChange: -104.75, fallbackChangePct: -0.57 },
-  { symbol: 'ASTRON', label: 'ASTRON', tag: '', fallbackPrice: 26.05, fallbackChange: -0.35, fallbackChangePct: -1.33 },
-  { symbol: 'ASIANPAINT', label: 'ASIANPAINT', tag: '', fallbackPrice: 3092.45, fallbackChange: -45.65, fallbackChangePct: -1.45 },
-  { symbol: 'RITES', label: 'RITES', tag: '', fallbackPrice: 396.50, fallbackChange: 8.15, fallbackChangePct: 2.10 },
-  { symbol: 'BHEL', label: 'BHEL', tag: 'BSE', fallbackPrice: 82.30, fallbackChange: 0.74, fallbackChangePct: 0.91 },
-  { symbol: 'RELIANCE', label: 'RELIANCE', tag: '', fallbackPrice: 2439.30, fallbackChange: -14.50, fallbackChangePct: -0.59 },
-  { symbol: 'NIFTYBEES', label: 'NIFTYBEES', tag: 'BSE', fallbackPrice: 199.79, fallbackChange: -0.76, fallbackChangePct: -0.38 },
-];
+const DEFAULT_SYMBOLS = ['NIFTY', 'SENSEX', 'RELIANCE', 'TCS', 'INFY', 'HDFCBANK', 'SBIN', 'WIPRO', 'ICICIBANK', 'BHARTIARTL'];
 
-type WatchItem = typeof WATCHLIST_SYMBOLS[number] & { livePrice?: number; liveChange?: number; livePct?: number };
+interface Quote {
+  symbol: string;
+  price: number;
+  change: number;
+  change_pct: number;
+  market_open?: boolean;
+}
 
-export default function WatchlistSidebar() {
-  const [activeTab, setActiveTab] = useState(1);
-  const [search, setSearch] = useState('');
-  const [items, setItems] = useState<WatchItem[]>(WATCHLIST_SYMBOLS);
+interface Props {
+  onTrade?: (symbol: string, side: 'BUY' | 'SELL', price: number) => void;
+  onChart?: (symbol: string) => void;
+}
 
-  // Try to fetch live quotes for key symbols
+export default function WatchlistSidebar({ onTrade, onChart }: Props) {
+  const [quotes, setQuotes]   = useState<Record<string, Quote>>({});
+  const [search, setSearch]   = useState('');
+  const [symbols, setSymbols] = useState<string[]>(DEFAULT_SYMBOLS);
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchAll = async () => {
+    const results = await Promise.all(
+      symbols.map(s => api.market.getQuote(s).then(q => [s, q]).catch(() => [s, null]))
+    );
+    const map: Record<string, Quote> = {};
+    results.forEach(([s, q]: any) => { if (q && q.price > 0) map[s] = q; });
+    setQuotes(map);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const fetchQuotes = async () => {
-      const updated = await Promise.all(
-        WATCHLIST_SYMBOLS.map(async (item) => {
-          try {
-            const q = await api.market.getQuote(item.symbol);
-            return { ...item, livePrice: q.price, liveChange: q.change, livePct: q.change_pct };
-          } catch {
-            return item;
-          }
-        })
-      );
-      setItems(updated);
-    };
-    fetchQuotes();
-    const iv = setInterval(fetchQuotes, 30000);
+    fetchAll();
+    const iv = setInterval(fetchAll, 5000);   // tick every 5s like Kite
     return () => clearInterval(iv);
-  }, []);
+  }, [symbols]);
 
-  const filtered = items.filter(i =>
-    !search || i.label.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const nifty = items.find(i => i.symbol === 'NIFTY');
-  const sensex = items.find(i => i.symbol === 'SENSEX');
-
-  const getPrice = (i: WatchItem) => i.livePrice ?? i.fallbackPrice;
-  const getChange = (i: WatchItem) => i.liveChange ?? i.fallbackChange;
-  const getChangePct = (i: WatchItem) => i.livePct ?? i.fallbackChangePct;
-  const isUp = (i: WatchItem) => getChange(i) >= 0;
+  const displayed = symbols.filter(s => s.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <aside className="w-[320px] flex-shrink-0 bg-[#0d0d0d] border-r border-[#333333] flex flex-col h-full z-40">
-      {/* Market Status Header */}
-      <div className="p-3 border-b border-[#333333] flex flex-col gap-2">
-        {/* NIFTY 50 */}
-        <div className="flex items-center justify-between text-[11px] font-semibold tracking-wide">
-          <span className="text-[#e2bfb0]">NIFTY 50</span>
-          <div className="flex items-center gap-2">
-            <span className={nifty && getChange(nifty) >= 0 ? 'text-[#40e56c]' : 'text-[#ffb4ab]'}>
-              {nifty ? getPrice(nifty).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '18181.75'}
-            </span>
-            <span className="text-[#888]">
-              {nifty ? `${getChange(nifty) >= 0 ? '+' : ''}${getChange(nifty).toFixed(2)} (${getChangePct(nifty).toFixed(2)}%)` : '-104.75 (-0.57%)'}
-            </span>
-          </div>
-        </div>
-        {/* SENSEX */}
-        <div className="flex items-center justify-between text-[11px] font-semibold tracking-wide">
-          <span className="text-[#e2bfb0]">SENSEX</span>
-          <div className="flex items-center gap-2">
-            <span className={sensex && getChange(sensex) >= 0 ? 'text-[#40e56c]' : 'text-[#ffb4ab]'}>
-              {sensex ? getPrice(sensex).toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '61560.64'}
-            </span>
-            <span className="text-[#888]">
-              {sensex ? `${getChange(sensex) >= 0 ? '+' : ''}${getChange(sensex).toFixed(2)} (${getChangePct(sensex).toFixed(2)}%)` : '-371.83 (-0.60%)'}
-            </span>
-          </div>
-        </div>
-      </div>
-
+    <div className="w-[280px] flex-shrink-0 bg-[#0a0a0a] border-r border-[#1e1e1e] flex flex-col">
       {/* Search */}
-      <div className="px-3 py-2 border-b border-[#333333] bg-[#1a1a1a] flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 flex-1 text-[#888]">
-          <span className="material-symbols-outlined text-[16px]">search</span>
+      <div className="p-3 border-b border-[#1e1e1e]">
+        <div className="flex items-center gap-2 bg-[#141414] rounded px-2.5 py-1.5 transition-smooth focus-within:bg-[#1a1a1a] focus-within:ring-1 focus-within:ring-kite-blue/40">
+          <span className="material-symbols-outlined text-[16px] text-[#555]">search</span>
           <input
-            type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search (infy bse, nifty fut, etc)"
-            className="bg-transparent border-none outline-none text-[13px] text-[#f7ddd2] placeholder:text-[#555] w-full p-0"
+            placeholder="Search eg: infy, nifty fut"
+            className="bg-transparent outline-none text-[13px] text-white flex-1 placeholder:text-[#555]"
           />
+          <span className="text-[10px] text-[#444]">{displayed.length}/50</span>
         </div>
-        <span className="text-[11px] text-[#888] font-semibold whitespace-nowrap">{filtered.length} / 50</span>
       </div>
 
-      {/* Watchlist Items */}
-      <div className="flex-1 overflow-y-auto hide-scrollbar">
-        {filtered.map((item, idx) => {
-          const price = getPrice(item);
-          const change = getChange(item);
-          const pct = getChangePct(item);
-          const up = isUp(item);
-          const colorClass = up ? 'text-[#40e56c]' : 'text-[#ffb4ab]';
-          const icon = up ? 'expand_less' : 'expand_more';
-
-          return (
-            <div
-              key={idx}
-              className="flex items-center justify-between px-3 py-3 border-b border-[#1a1a1a] hover:bg-[#1a1a1a] transition-all duration-150 cursor-pointer group"
-            >
-              <div className="flex flex-col gap-0.5">
-                <div className="flex items-center gap-1">
-                  <span className={`text-[11px] font-semibold tracking-wide ${colorClass}`}>{item.label}</span>
-                  {item.tag && (
-                    <span className="text-[9px] text-[#555] uppercase">{item.tag}</span>
-                  )}
-                  {item.badge && (
-                    <span className="text-[9px] text-primary bg-primary/10 px-1 rounded leading-none py-0.5">{item.badge}</span>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-col items-end gap-0.5">
-                <span className="text-[13px] font-mono font-medium text-[#f7ddd2]">
-                  {price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-                <div className={`flex items-center gap-0.5 text-[11px] font-mono ${colorClass}`}>
-                  <span className="material-symbols-outlined text-[14px]">{icon}</span>
-                  <span>{Math.abs(change).toFixed(2)}</span>
-                  <span>{Math.abs(pct).toFixed(2)}%</span>
-                </div>
-              </div>
+      {/* List */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
+        {loading ? (
+          Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="flex justify-between px-3 py-2.5 border-b border-[#141414]">
+              <div className="skeleton h-3 w-20" /><div className="skeleton h-3 w-16" />
             </div>
-          );
-        })}
-      </div>
+          ))
+        ) : (
+          displayed.map(sym => {
+            const q = quotes[sym];
+            const up = (q?.change_pct ?? 0) >= 0;
+            const isHover = hovered === sym;
+            return (
+              <div
+                key={sym}
+                onMouseEnter={() => setHovered(sym)}
+                onMouseLeave={() => setHovered(null)}
+                className="relative row-hover border-b border-[#141414] cursor-pointer select-none"
+                style={{ borderLeft: `2px solid ${up ? 'rgba(64,229,108,0.5)' : 'rgba(255,100,100,0.5)'}` }}
+              >
+                <div className="flex items-center justify-between px-3 py-2">
+                  <div className="flex flex-col">
+                    <span className={`text-[12.5px] font-medium ${up ? 'text-bullish' : 'text-bearish'}`}>{sym}</span>
+                    <span className="text-[10px] text-[#555]">NSE</span>
+                  </div>
+                  {q && (
+                    <div className="flex flex-col items-end">
+                      <FlashPrice value={q.price} prefix="" className={`text-[12.5px] font-semibold ${up ? 'text-bullish' : 'text-bearish'}`} />
+                      <span className={`text-[10px] ${up ? 'text-bullish' : 'text-bearish'}`}>
+                        {up ? '+' : ''}{q.change?.toFixed(2)} ({up ? '+' : ''}{q.change_pct?.toFixed(2)}%)
+                      </span>
+                    </div>
+                  )}
+                </div>
 
-      {/* Watchlist Tabs Footer */}
-      <div className="flex border-t border-[#333333] bg-[#0d0d0d] h-10 shrink-0">
-        {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-          <button
-            key={n}
-            onClick={() => setActiveTab(n)}
-            className={`flex-1 border-r border-[#333333] flex items-center justify-center text-[11px] font-semibold transition-colors ${
-              activeTab === n
-                ? 'text-primary bg-[#1a1a1a]'
-                : 'text-[#888] hover:bg-[#1a1a1a] hover:text-[#e2bfb0]'
-            }`}
-          >
-            {n}
-          </button>
-        ))}
-        <button className="flex-1 flex items-center justify-center text-[#888] hover:bg-[#1a1a1a] hover:text-[#e2bfb0] transition-colors">
-          <span className="material-symbols-outlined text-[16px]">settings</span>
-        </button>
+                {/* Hover-reveal action buttons — the Kite signature */}
+                {isHover && q && (
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 fade-in">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onTrade?.(sym, 'BUY', q.price); }}
+                      className="w-6 h-6 rounded bg-kite-blue text-white text-[11px] font-bold btn-press flex items-center justify-center shadow-lg"
+                      title="Buy"
+                    >B</button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onTrade?.(sym, 'SELL', q.price); }}
+                      className="w-6 h-6 rounded bg-[#ff5722] text-white text-[11px] font-bold btn-press flex items-center justify-center shadow-lg"
+                      title="Sell"
+                    >S</button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onChart?.(sym); }}
+                      className="w-6 h-6 rounded bg-[#2a2a2a] text-[#ccc] btn-press flex items-center justify-center shadow-lg"
+                      title="Chart"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">show_chart</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
       </div>
-    </aside>
+    </div>
   );
 }

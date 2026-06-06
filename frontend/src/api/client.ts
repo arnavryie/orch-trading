@@ -61,10 +61,23 @@ export const api = {
   demo: {
     reset: () => post('/api/demo/reset'),
   },
+  council: {
+    convene: (symbol: string) => post('/api/council', { symbol }),
+    trade:   (body: any) => post('/api/council/trade', body),
+    explain: (orderId: string) => get(`/api/explain/${orderId}`),
+  },
   autoTrader: {
     start: () => post('/api/auto-trader/start'),
     stop:  () => post('/api/auto-trader/stop'),
     status: () => get('/api/auto-trader/status'),
+    runOnce: () => post('/api/auto-trader/run-once'),
+  },
+  trackRecord: {
+    scoreboard:  () => get('/api/track-record/scoreboard'),
+    predictions: () => get('/api/track-record/predictions'),
+  },
+  digest: {
+    get: () => get('/api/digest'),
   },
   health: () => get('/api/health'),
   chat: (message: string, context?: Record<string, unknown>) => post('/api/chat', { message, context: context ?? {} }),
